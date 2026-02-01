@@ -2,6 +2,23 @@
 
 All notable changes to VoiceCapacitor will be documented in this file.
 
+## [1.0.1] - 2025-02-01
+
+### Added
+- `fix-xcode-framework-error.sh` - One-command fix for the most common build error
+- Xcode running detection in setup.sh (warns if Xcode is open during pod install)
+
+### Improved
+- setup.sh now warns about closing Xcode and provides clearer next steps
+- QUICKSTART.md includes preventive steps (close Xcode, clean build)
+- README.md troubleshooting section expanded with quick fix script
+- docs/IOS_SETUP.md has detailed "Framework not found" solution at the top
+- All documentation updated with clearer Xcode workspace instructions
+
+### Fixed
+- Addressed common "Framework not found" error that occurs when Xcode is open during setup
+- Added explicit warnings about using .xcworkspace instead of .xcodeproj
+
 ## [1.0.0] - 2025-02-01
 
 ### Added

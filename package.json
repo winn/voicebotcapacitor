@@ -1,7 +1,7 @@
 {
   "name": "voicecapacitor",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "iOS Speech Recognition template built with React, TypeScript, and Capacitor. Native speech-to-text with 21 languages, zero API costs.",
   "author": "VoiceCapacitor",

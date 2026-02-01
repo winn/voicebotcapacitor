@@ -31,9 +31,14 @@ That's it! The script will:
 - ✅ Sync everything
 
 ### Step 3: Open in Xcode
+
+**IMPORTANT:** Make sure Xcode is NOT already running. If it is, close it first (Command+Q).
+
 ```bash
 npx cap open ios
 ```
+
+This opens the `.xcworkspace` file (not the `.xcodeproj`). The workspace includes the CocoaPods dependencies.
 
 ### Step 4: Connect Your iPhone
 1. Plug your iPhone into your Mac with a USB cable
@@ -54,9 +59,16 @@ npx cap open ios
    - A free Apple ID works fine!
 
 ### Step 7: Build and Run
+- **First, clean the build:** Press **Shift+Command+K**
 - Click the **Play ▶️ button** in the top left (or press Command+R)
 - Wait for the build to complete
 - The app will launch on your iPhone!
+
+**If you see "Framework not found" error:**
+1. Close Xcode completely (Command+Q)
+2. Reopen: `open ios/App/App.xcworkspace`
+3. Clean build: Shift+Command+K
+4. Build again: Command+R
 
 ### Step 8: Trust the Developer (First Time Only)
 If you see "Untrusted Developer" on your iPhone:

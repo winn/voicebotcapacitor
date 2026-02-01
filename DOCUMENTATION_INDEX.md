@@ -23,7 +23,8 @@ Quick reference for all documentation files.
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
 | **`./setup.sh`** | Automated installation | First time setup |
-| **`./verify-setup.sh`** | Verify installation | Troubleshooting |
+| **`./verify-setup.sh`** | Verify installation | After setup |
+| **`./fix-xcode-framework-error.sh`** | Fix framework errors | When build fails |
 
 ## 📖 Quick Links by Task
 
@@ -33,9 +34,10 @@ Quick reference for all documentation files.
 3. Verify: `./verify-setup.sh`
 
 ### Troubleshooting
-1. Check: [README.md - Troubleshooting](README.md#troubleshooting)
-2. Read: [docs/IOS_SETUP.md](docs/IOS_SETUP.md)
-3. Run: `./verify-setup.sh`
+1. Framework error? Run: `./fix-xcode-framework-error.sh`
+2. Check: [README.md - Troubleshooting](README.md#troubleshooting)
+3. Read: [docs/IOS_SETUP.md](docs/IOS_SETUP.md)
+4. Verify: `./verify-setup.sh`
 
 ### Contributing
 1. Read: [CONTRIBUTING.md](CONTRIBUTING.md)

@@ -203,11 +203,26 @@ cd ../..
 ```
 
 **❌ "Framework 'CapacitorCommunitySpeechRecognition' not found"**
-1. In Xcode: Click blue "App" → PROJECT "App" → Info tab
-2. Under Configurations, set:
-   - Debug → `Pods-App.debug`
-   - Release → `Pods-App.release`
-3. Clean build (Shift+Command+K) and rebuild
+
+**This is the most common issue!** Quick fix:
+```bash
+./fix-xcode-framework-error.sh
+```
+
+**Manual solution:**
+1. **Close Xcode completely** (Command+Q) ← This is critical!
+2. Verify pods are installed:
+   ```bash
+   cd ios/App && pod install && cd ../..
+   ```
+3. **Open the .xcworkspace** (not .xcodeproj):
+   ```bash
+   open ios/App/App.xcworkspace
+   ```
+4. In Xcode: Clean build (Shift+Command+K)
+5. Build again (Command+R)
+
+**Root cause:** Xcode must be closed when pods are installed. Always use the `.xcworkspace` file.
 
 **❌ Setup verification**
 Run the verification script to check your setup:

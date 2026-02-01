@@ -55,6 +55,15 @@ echo ""
 
 # Step 4: Install CocoaPods dependencies
 echo "☕ Step 4/5: Installing CocoaPods dependencies..."
+
+# Check if Xcode is running
+if pgrep -x "Xcode" > /dev/null; then
+    echo "⚠️  WARNING: Xcode is currently running!"
+    echo "   Please CLOSE Xcode now to avoid build issues."
+    echo "   Press Enter after closing Xcode to continue..."
+    read -r
+fi
+
 cd ios/App
 pod install
 cd ../..
@@ -74,17 +83,29 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Next steps:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "1. Open in Xcode:"
+echo "⚠️  IMPORTANT: If Xcode is open, CLOSE IT NOW before proceeding!"
+echo ""
+echo "1. Open in Xcode (use .xcworkspace, not .xcodeproj):"
 echo "   npx cap open ios"
+echo ""
+echo "   OR manually:"
+echo "   open ios/App/App.xcworkspace"
 echo ""
 echo "2. Connect your iPhone via USB"
 echo ""
 echo "3. In Xcode:"
 echo "   • Select your iPhone from device dropdown (top bar)"
 echo "   • Go to Signing & Capabilities → select your Team"
-echo "   • Click Play ▶️ (or press Command+R)"
+echo "   • Clean build: Shift+Command+K"
+echo "   • Build and run: Command+R (or click Play ▶️)"
 echo ""
-echo "4. On first launch, you may need to trust the developer:"
+echo "4. If you see 'Framework not found' error:"
+echo "   • Close Xcode completely (Command+Q)"
+echo "   • Reopen: open ios/App/App.xcworkspace"
+echo "   • Clean build (Shift+Command+K)"
+echo "   • Build again (Command+R)"
+echo ""
+echo "5. On first launch, trust the developer on iPhone:"
 echo "   Settings > General > VPN & Device Management"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
