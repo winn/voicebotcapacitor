@@ -1,7 +1,9 @@
-import { Mic, MicOff, Trash2, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Trash2, AlertCircle, Languages } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { SUPPORTED_LANGUAGES } from '@/config/languages';
 import { Capacitor } from '@capacitor/core';
 
 export function SpeechRecognitionApp() {
@@ -16,6 +18,8 @@ export function SpeechRecognitionApp() {
     stopListening,
     clearTranscript,
     requestPermission,
+    language,
+    setLanguage,
   } = useSpeechRecognition();
 
   const isNative = Capacitor.isNativePlatform();
@@ -30,6 +34,31 @@ export function SpeechRecognitionApp() {
           Tap the microphone to start speaking
         </p>
       </header>
+
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <Languages className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">
+                Language
+              </label>
+              <Select value={language} onValueChange={setLanguage} disabled={isListening}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {!isNative && (
         <Card className="mb-6 border-amber-500/50 bg-amber-500/10">

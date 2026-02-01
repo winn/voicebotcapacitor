@@ -2,6 +2,48 @@ import { useState, useCallback, useEffect } from 'react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 
+/**
+ * Custom React hook for iOS Speech Recognition using Capacitor
+ *
+ * Provides real-time speech-to-text transcription using Apple's native Speech Recognition API.
+ * Supports 21+ languages with no API costs (free).
+ *
+ * @returns {Object} Speech recognition state and control functions
+ * @property {boolean} isListening - Whether speech recognition is currently active
+ * @property {string} transcript - Final transcribed text
+ * @property {string} partialTranscript - Real-time partial results while listening
+ * @property {string | null} error - Error message if something went wrong
+ * @property {boolean} isAvailable - Whether speech recognition is available on device
+ * @property {boolean} hasPermission - Whether microphone/speech permissions are granted
+ * @property {Function} startListening - Start recording and transcribing speech
+ * @property {Function} stopListening - Stop recording and finalize transcript
+ * @property {Function} clearTranscript - Clear all transcribed text
+ * @property {Function} requestPermission - Request microphone and speech recognition permissions
+ * @property {string} language - Current language code (BCP 47 format, e.g., 'en-US', 'th-TH')
+ * @property {Function} setLanguage - Update the language for speech recognition
+ *
+ * @example
+ * ```typescript
+ * const {
+ *   isListening,
+ *   transcript,
+ *   startListening,
+ *   stopListening,
+ *   language,
+ *   setLanguage
+ * } = useSpeechRecognition();
+ *
+ * // Change language
+ * setLanguage('es-MX');
+ *
+ * // Start recording
+ * await startListening();
+ *
+ * // Stop and get final transcript
+ * await stopListening();
+ * console.log(transcript);
+ * ```
+ */
 export function useSpeechRecognition() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -9,6 +51,7 @@ export function useSpeechRecognition() {
   const [error, setError] = useState<string | null>(null);
   const [isAvailable, setIsAvailable] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [language, setLanguage] = useState('en-US');
 
   useEffect(() => {
     const checkAvailability = async () => {
@@ -68,7 +111,7 @@ export function useSpeechRecognition() {
       setPartialTranscript('');
 
       await SpeechRecognition.start({
-        language: 'en-US',
+        language: language,
         maxResults: 5,
         prompt: 'Speak now...',
         partialResults: true,
@@ -85,7 +128,7 @@ export function useSpeechRecognition() {
       setError('Failed to start speech recognition');
       setIsListening(false);
     }
-  }, [isAvailable, hasPermission, requestPermission]);
+  }, [isAvailable, hasPermission, requestPermission, language]);
 
   const stopListening = useCallback(async () => {
     try {
@@ -127,5 +170,7 @@ export function useSpeechRecognition() {
     stopListening,
     clearTranscript,
     requestPermission,
+    language,
+    setLanguage,
   };
 }

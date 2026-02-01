@@ -1,73 +1,222 @@
-# Welcome to your Lovable project
+# VoiceCapacitor 🎤
 
-## Project info
+iOS Speech Recognition template built with React, TypeScript, and Capacitor.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![iOS](https://img.shields.io/badge/iOS-15%2B-blue)](https://www.apple.com/ios)
+[![React](https://img.shields.io/badge/React-18.3-blue)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)](https://www.typescriptlang.org)
 
-## How can I edit this code?
+> **A production-ready template for building iOS voice apps with native speech recognition. Zero API costs, 21 languages, fully typed.**
 
-There are several ways of editing your application.
+## Why VoiceCapacitor?
 
-**Use Lovable**
+- 🆓 **Zero Cost** - Uses Apple's native Speech Recognition API (no cloud API fees)
+- 🌍 **21 Languages** - English, Thai, Spanish, French, German, Japanese, Chinese, and more
+- 🎯 **Production Ready** - Clean code, documented, tested, ready to fork and customize
+- ⚡ **Fast Setup** - One command to install everything
+- 📱 **Real-Time** - Live transcription with partial results as you speak
+- 🔒 **Privacy** - Runs on device with Apple's secure cloud processing
+- 🎨 **Customizable** - Modern React + TypeScript + Tailwind stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## What's Included
 
-Changes made via Lovable will be committed automatically to this repo.
+```
+✅ Core Features
+   ├── 🎤 Speech recognition hook (useSpeechRecognition)
+   ├── 🌐 21 language support with language selector
+   ├── ⚡ Real-time transcription with partial results
+   ├── 🔐 Permission handling (microphone + speech recognition)
+   └── ⚠️  Error handling and user feedback
 
-**Use your preferred IDE**
+✅ Developer Experience
+   ├── 📝 TypeScript with full type safety
+   ├── 📚 Comprehensive documentation + JSDoc comments
+   ├── 🤖 Automated setup script
+   ├── ✅ Setup verification script
+   └── 🧪 Clean, maintainable code structure
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+✅ UI Components
+   ├── 🎨 Tailwind CSS styling
+   ├── 🔘 Shadcn UI components (Button, Card, Select)
+   ├── 📱 Responsive mobile-first design
+   └── 🎭 Dark mode compatible
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+✅ Documentation
+   ├── 📖 Quick start guide (QUICKSTART.md)
+   ├── 🍎 iOS setup guide (docs/IOS_SETUP.md)
+   ├── 🤝 Contributing guidelines (CONTRIBUTING.md)
+   └── 📋 Changelog (CHANGELOG.md)
 ```
 
-**Edit a file directly in GitHub**
+## 🚀 Quick Start (Automated)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+**New to iOS development?** Check out [QUICKSTART.md](QUICKSTART.md) for a beginner-friendly guide with screenshots!
 
-**Use GitHub Codespaces**
+### One-Command Setup
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+# Clone the repo
+git clone https://github.com/your-username/voicecapacitor.git
+cd voicecapacitor
 
-## What technologies are used for this project?
+# Run automated setup (installs everything)
+./setup.sh
 
-This project is built with:
+# Open in Xcode
+npx cap open ios
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Then: Select your iPhone, set signing, and click Play ▶️
+```
 
-## How can I deploy this project?
+That's it! The `setup.sh` script handles all installation steps automatically.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## 📖 Manual Installation
 
-Yes, you can!
+### Prerequisites
+- Node.js 18+
+- macOS with Xcode 14+
+- iOS device (iOS 15+)
+- CocoaPods installed
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Installation
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+1. Clone and install:
+```bash
+git clone <your-repo-url>
+cd voicecapacitor
+npm install
+```
+
+2. Build web assets:
+```bash
+npm run build
+```
+
+3. Add iOS platform (only needed for fresh setup):
+```bash
+npx cap add ios
+```
+
+4. Install CocoaPods dependencies:
+```bash
+cd ios/App
+pod install
+cd ../..
+```
+
+5. Sync and open in Xcode:
+```bash
+npx cap sync ios
+npx cap open ios
+```
+
+**Optional: Verify your setup**
+```bash
+./verify-setup.sh
+```
+
+6. In Xcode:
+   - Select your iPhone from device dropdown
+   - Go to Signing & Capabilities → select your Team
+   - Click Play ▶️ to build and run
+
+**Detailed iOS setup instructions:** See [docs/IOS_SETUP.md](docs/IOS_SETUP.md)
+
+## Project Structure
+
+- `src/hooks/useSpeechRecognition.ts` - Core speech recognition hook
+- `src/components/SpeechRecognitionApp.tsx` - Example UI
+- `src/config/languages.ts` - Supported languages configuration
+- `ios/App/App/Info.plist` - Contains microphone & speech permissions
+
+## How to Customize
+
+### Change App Name
+1. Update `capacitor.config.ts`: `appName`
+2. Update `ios/App/App/Info.plist`: `CFBundleDisplayName`
+
+### Add Your Branding
+- Update colors in `src/index.css`
+- Modify `tailwind.config.ts`
+
+### Build Your App
+Use the `useSpeechRecognition()` hook in your own components:
+
+```typescript
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+
+function MyComponent() {
+  const {
+    isListening,
+    transcript,
+    startListening,
+    stopListening,
+    language,
+    setLanguage
+  } = useSpeechRecognition();
+
+  // Build your UI
+}
+```
+
+## Use Cases
+
+- Voice transcription apps
+- Voice-controlled chatbots (integrate with OpenAI/Claude API)
+- Real-time translation
+- Voice note taking
+- Accessibility tools
+
+## Important Notes
+
+- **Free**: Uses Apple's native Speech Recognition (no API costs)
+- **Requires iOS device**: Won't work in simulator
+- **Internet required**: iOS speech recognition uses cloud processing
+- **Recording limit**: ~1 minute per session (Apple's limitation)
+- **Perfect for**: Conversational apps, short voice commands, voicebots
+
+## Troubleshooting
+
+### Common Issues
+
+**❌ "Speech recognition not available"**
+- Must run on **physical iOS device** (simulator not supported)
+- Requires **iOS 15+**
+
+**❌ "Permission denied"**
+- On iPhone: Settings > Privacy & Security > Microphone → Enable for VoiceCapacitor
+- On iPhone: Settings > Privacy & Security > Speech Recognition → Enable
+
+**❌ "Build failed" in Xcode**
+```bash
+# Clean and rebuild pods
+cd ios/App
+pod deintegrate
+pod install
+cd ../..
+
+# In Xcode: Clean Build (Shift+Command+K)
+# Then rebuild
+```
+
+**❌ "Framework 'CapacitorCommunitySpeechRecognition' not found"**
+1. In Xcode: Click blue "App" → PROJECT "App" → Info tab
+2. Under Configurations, set:
+   - Debug → `Pods-App.debug`
+   - Release → `Pods-App.release`
+3. Clean build (Shift+Command+K) and rebuild
+
+**❌ Setup verification**
+Run the verification script to check your setup:
+```bash
+./verify-setup.sh
+```
+
+**Need more help?** See [docs/IOS_SETUP.md](docs/IOS_SETUP.md) for detailed troubleshooting.
+
+## License
+
+MIT
