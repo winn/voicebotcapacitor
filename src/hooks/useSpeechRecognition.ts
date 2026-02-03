@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
 
@@ -52,6 +52,7 @@ export function useSpeechRecognition() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [language, setLanguage] = useState('en-US');
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const checkAvailability = async () => {
@@ -121,6 +122,16 @@ export function useSpeechRecognition() {
       SpeechRecognition.addListener('partialResults', (data) => {
         if (data.matches && data.matches.length > 0) {
           setPartialTranscript(data.matches[0]);
+
+          // Reset silence timeout - auto-stop after 2 seconds of silence
+          if (silenceTimeoutRef.current) {
+            clearTimeout(silenceTimeoutRef.current);
+          }
+
+          silenceTimeoutRef.current = setTimeout(() => {
+            console.log('⏱️ Auto-stopping after silence');
+            stopListening();
+          }, 2000);
         }
       });
     } catch (err) {
@@ -132,20 +143,24 @@ export function useSpeechRecognition() {
 
   const stopListening = useCallback(async () => {
     try {
+      // Clear silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
+
       await SpeechRecognition.stop();
       setIsListening(false);
-      
+
       // On iOS, the final result comes through partialResults listener
       // We'll commit the partial transcript to the main transcript
-      if (partialTranscript) {
-        setTranscript((prev) => {
-          if (prev) {
-            return prev + ' ' + partialTranscript;
-          }
-          return partialTranscript;
-        });
-        setPartialTranscript('');
-      }
+      setPartialTranscript((currentPartial) => {
+        if (currentPartial) {
+          console.log('📝 Final transcript:', currentPartial);
+          setTranscript(currentPartial);
+        }
+        return ''; // Clear partial transcript
+      });
 
       await SpeechRecognition.removeAllListeners();
     } catch (err) {
