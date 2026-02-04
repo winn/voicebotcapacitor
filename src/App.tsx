@@ -1,5 +1,6 @@
 import { VoiceChatApp } from "@/components/VoiceChatApp";
 import { Component, ReactNode } from "react";
+import { debugLog } from "./lib/debug";
 
 // Error Boundary to catch rendering errors
 class ErrorBoundary extends Component<
@@ -37,7 +38,7 @@ class ErrorBoundary extends Component<
 }
 
 const App = () => {
-  console.log('✅ App component rendering');
+  debugLog('✅ App component rendering');
   try {
     return (
       <ErrorBoundary>

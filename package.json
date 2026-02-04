@@ -1,7 +1,7 @@
 {
   "name": "voicecapacitor",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.3",
   "type": "module",
   "description": "iOS Speech Recognition template built with React, TypeScript, and Capacitor. Native speech-to-text with 21 languages, zero API costs.",
   "author": "VoiceCapacitor",
@@ -33,7 +33,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync:ios": "npx cap sync ios && node scripts/patch-capacitor-config.js"
   },
   "dependencies": {
     "@capacitor-community/speech-recognition": "^7.0.1",

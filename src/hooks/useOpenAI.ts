@@ -2,12 +2,13 @@
  * React hook for OpenAI LLM integration
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChatMessage } from '../types/chat';
 import { sendMessage as sendMessageToOpenAI } from '../services/openai';
 import { OPENAI_CONFIG } from '../config/openai';
 import { getOpenAIApiKey, setOpenAIApiKey as saveApiKey } from '../lib/env';
+import { DEBUG_ENABLED, debugLog, debugWarn } from '../lib/debug';
 import {
   loadConversationHistory,
   saveConversationHistory,
@@ -26,19 +27,19 @@ export interface UseOpenAIResult {
 }
 
 export function useOpenAI(): UseOpenAIResult {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: uuidv4(),
-      role: 'system',
-      content: OPENAI_CONFIG.SYSTEM_PROMPT,
-      timestamp: new Date(),
-    },
-  ]);
+  const createSystemMessage = useCallback((): ChatMessage => ({
+    id: uuidv4(),
+    role: 'system',
+    content: OPENAI_CONFIG.SYSTEM_PROMPT,
+    timestamp: new Date(),
+  }), []);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([createSystemMessage()]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKeyState] = useState<string | null>(getOpenAIApiKey());
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [lastPayload, setLastPayload] = useState<string | null>(null);
+  const messagesRef = useRef<ChatMessage[]>(messages);
 
   // Load conversation history from device storage on mount
   useEffect(() => {
@@ -47,18 +48,20 @@ export function useOpenAI(): UseOpenAIResult {
         const storedMessages = await loadConversationHistory();
 
         if (storedMessages.length > 0) {
-          console.log('📚 Restoring conversation history');
+          debugLog('📚 Restoring conversation history');
           setMessages(storedMessages);
         }
       } catch (error) {
         console.error('❌ Failed to load conversation history:', error);
-      } finally {
-        setIsLoadingHistory(false);
       }
     };
 
     loadHistory();
   }, []);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const setApiKey = useCallback((key: string) => {
     saveApiKey(key);
@@ -68,9 +71,9 @@ export function useOpenAI(): UseOpenAIResult {
 
   const sendMessage = useCallback(
     async (userMessage: string) => {
-      console.log('🤖 useOpenAI.sendMessage called with:', userMessage);
-      console.log('🔑 API Key exists:', !!apiKey);
-      console.log('📊 Current messages state length:', messages.length);
+      debugLog('🤖 useOpenAI.sendMessage called with:', userMessage);
+      debugLog('🔑 API Key exists:', !!apiKey);
+      debugLog('📊 Current messages state length:', messagesRef.current.length);
 
       if (!apiKey) {
         console.error('❌ No API key configured');
@@ -79,7 +82,7 @@ export function useOpenAI(): UseOpenAIResult {
       }
 
       if (!userMessage.trim()) {
-        console.warn('⚠️ Empty message, skipping');
+        debugWarn('⚠️ Empty message, skipping');
         return;
       }
 
@@ -87,14 +90,9 @@ export function useOpenAI(): UseOpenAIResult {
       setError(null);
 
       // Build the messages array directly from current state
-      const currentMessagesState = messages.length === 0
-        ? [{
-            id: uuidv4(),
-            role: 'system' as const,
-            content: OPENAI_CONFIG.SYSTEM_PROMPT,
-            timestamp: new Date(),
-          }]
-        : messages;
+      const currentMessagesState = messagesRef.current.length === 0
+        ? [createSystemMessage()]
+        : messagesRef.current;
 
       const userChatMessage: ChatMessage = {
         id: uuidv4(),
@@ -106,29 +104,35 @@ export function useOpenAI(): UseOpenAIResult {
       // Build the array to send to OpenAI
       const messagesToSend = [...currentMessagesState, userChatMessage];
 
-      console.log('📊 Messages to send:', messagesToSend.length);
-      console.log('📋 Messages:', JSON.stringify(messagesToSend.map(m => ({ role: m.role, content: m.content.substring(0, 50) })), null, 2));
+      debugLog('📊 Messages to send:', messagesToSend.length);
 
-      // Create payload for debugging
-      const payloadForDisplay = JSON.stringify(messagesToSend.map(m => ({
-        role: m.role,
-        content: m.content
-      })), null, 2);
+      if (DEBUG_ENABLED) {
+        const payloadForDisplay = JSON.stringify(
+          messagesToSend.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          null,
+          2
+        );
 
-      console.log('🔍 Payload:');
-      console.log(payloadForDisplay);
+        debugLog('🔍 Payload:');
+        debugLog(payloadForDisplay);
 
-      // Store payload for UI display
-      setLastPayload(payloadForDisplay);
+        // Store payload for UI display
+        setLastPayload(payloadForDisplay);
+      } else if (lastPayload) {
+        setLastPayload(null);
+      }
 
       // Update UI state with user message
       setMessages([...currentMessagesState, userChatMessage]);
 
       try {
-        console.log('📤 Calling OpenAI API...');
+      debugLog('📤 Calling OpenAI API...');
 
         const responseContent = await sendMessageToOpenAI(apiKey, messagesToSend);
-        console.log('📥 OpenAI response:', responseContent);
+        debugLog('📥 OpenAI response:', responseContent);
 
         const assistantMessage: ChatMessage = {
           id: uuidv4(),
@@ -140,7 +144,7 @@ export function useOpenAI(): UseOpenAIResult {
         // Add assistant message to conversation
         const newMessages = [...messagesToSend, assistantMessage];
         setMessages(newMessages);
-        console.log('✅ Assistant message added to conversation');
+        debugLog('✅ Assistant message added to conversation');
 
         // Save conversation history to device storage (with sliding window)
         saveConversationHistory(newMessages).catch(err =>
@@ -154,21 +158,14 @@ export function useOpenAI(): UseOpenAIResult {
         setMessages(currentMessagesState);
       } finally {
         setIsProcessing(false);
-        console.log('🏁 Processing complete');
+        debugLog('🏁 Processing complete');
       }
     },
-    [apiKey, messages]
+    [apiKey, createSystemMessage, lastPayload]
   );
 
   const clearConversation = useCallback(() => {
-    setMessages([
-      {
-        id: uuidv4(),
-        role: 'system',
-        content: OPENAI_CONFIG.SYSTEM_PROMPT,
-        timestamp: new Date(),
-      },
-    ]);
+    setMessages([createSystemMessage()]);
     setError(null);
 
     // Clear stored conversation history

@@ -4,12 +4,22 @@
 
 import { Preferences } from '@capacitor/preferences';
 import type { ChatMessage } from '../types/chat';
+import { debugLog } from '../lib/debug';
 
 const CONVERSATION_KEY = 'conversation_history';
 const MAX_MESSAGE_PAIRS = 10; // Keep last 10 user+assistant pairs
 
 export interface ConversationHistory {
   messages: ChatMessage[];
+}
+
+function normalizeMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    timestamp: message.timestamp instanceof Date
+      ? message.timestamp
+      : new Date(message.timestamp),
+  }));
 }
 
 /**
@@ -21,8 +31,8 @@ export async function loadConversationHistory(): Promise<ChatMessage[]> {
 
     if (value) {
       const history: ConversationHistory = JSON.parse(value);
-      console.log('📚 Loaded conversation history:', history.messages.length, 'messages');
-      return history.messages;
+      debugLog('📚 Loaded conversation history:', history.messages.length, 'messages');
+      return normalizeMessages(history.messages);
     }
 
     return [];
@@ -60,7 +70,7 @@ export async function saveConversationHistory(messages: ChatMessage[]): Promise<
       value: JSON.stringify(history),
     });
 
-    console.log('💾 Saved conversation history:', messagesToSave.length, 'messages');
+    debugLog('💾 Saved conversation history:', messagesToSave.length, 'messages');
   } catch (error) {
     console.error('❌ Error saving conversation history:', error);
   }
@@ -72,7 +82,7 @@ export async function saveConversationHistory(messages: ChatMessage[]): Promise<
 export async function clearConversationHistory(): Promise<void> {
   try {
     await Preferences.remove({ key: CONVERSATION_KEY });
-    console.log('🗑️ Cleared conversation history');
+    debugLog('🗑️ Cleared conversation history');
   } catch (error) {
     console.error('❌ Error clearing conversation history:', error);
   }

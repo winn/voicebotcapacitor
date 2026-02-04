@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react';
 import { useSpeechRecognition } from './useSpeechRecognition';
 import { useOpenAI } from './useOpenAI';
+import { debugLog } from '../lib/debug';
 
 // Common languages for speech recognition
 const AVAILABLE_LANGUAGES = [
@@ -44,12 +45,35 @@ export interface UseVoiceChatResult {
   setLanguage: (language: string) => void;
   clearConversation: () => void;
   setApiKey: (key: string) => void;
-  sendTestMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string) => Promise<void>;
 }
 
 export function useVoiceChat(): UseVoiceChatResult {
   const speechRecognition = useSpeechRecognition();
   const openai = useOpenAI();
+
+  const {
+    transcript,
+    error: speechError,
+    isListening,
+    partialTranscript,
+    language,
+    setLanguage,
+    clearTranscript,
+    startListening,
+    stopListening,
+  } = speechRecognition;
+
+  const {
+    messages,
+    isProcessing,
+    error: openaiError,
+    apiKey,
+    lastPayload,
+    sendMessage,
+    clearConversation: clearOpenAIConversation,
+    setApiKey,
+  } = openai;
 
   const previousFinalTranscript = useRef('');
   const isProcessingRef = useRef(false);
@@ -57,26 +81,26 @@ export function useVoiceChat(): UseVoiceChatResult {
 
   // Auto-send transcript to LLM when user stops speaking
   useEffect(() => {
-    const transcript = speechRecognition.transcript.trim();
+    const trimmedTranscript = transcript.trim();
 
     // Check if we have a new transcript and we're not already processing
     if (
-      transcript &&
-      transcript !== previousFinalTranscript.current &&
+      trimmedTranscript &&
+      trimmedTranscript !== previousFinalTranscript.current &&
       !isProcessingRef.current &&
-      !openai.isProcessing
+      !isProcessing
     ) {
-      console.log('🎤 Sending to LLM:', transcript);
-      previousFinalTranscript.current = transcript;
+      debugLog('🎤 Sending to LLM:', trimmedTranscript);
+      previousFinalTranscript.current = trimmedTranscript;
       isProcessingRef.current = true;
       shouldRestartAfterResponse.current = true;
 
       // Send to OpenAI
-      openai.sendMessage(transcript)
+      sendMessage(trimmedTranscript)
         .then(() => {
-          console.log('✅ LLM response received');
+          debugLog('✅ LLM response received');
           // Clear the transcript after successful send to prevent stacking
-          speechRecognition.clearTranscript();
+          clearTranscript();
         })
         .catch((error) => {
           console.error('❌ LLM error:', error);
@@ -85,61 +109,61 @@ export function useVoiceChat(): UseVoiceChatResult {
           isProcessingRef.current = false;
         });
     }
-  }, [speechRecognition.transcript, openai]);
+  }, [clearTranscript, isProcessing, sendMessage, transcript]);
 
   // Auto-restart microphone after LLM response
   useEffect(() => {
     if (
-      !openai.isProcessing &&
+      !isProcessing &&
       shouldRestartAfterResponse.current &&
-      !speechRecognition.isListening
+      !isListening
     ) {
-      console.log('🔄 Auto-restarting microphone');
+      debugLog('🔄 Auto-restarting microphone');
       shouldRestartAfterResponse.current = false;
 
       // Small delay before restarting
       setTimeout(() => {
-        speechRecognition.startListening();
+        startListening();
       }, 500);
     }
-  }, [openai.isProcessing, speechRecognition.isListening, speechRecognition.startListening]);
+  }, [isListening, isProcessing, startListening]);
 
   const startVoiceInput = () => {
-    if (!openai.isProcessing) {
-      speechRecognition.startListening();
+    if (!isProcessing) {
+      startListening();
     }
   };
 
   const stopVoiceInput = () => {
-    speechRecognition.stopListening();
+    stopListening();
   };
 
   const clearConversation = () => {
-    openai.clearConversation();
+    clearOpenAIConversation();
     previousFinalTranscript.current = '';
   };
 
-  const sendTestMessage = async (message: string) => {
-    console.log('🧪 Test message:', message);
-    await openai.sendMessage(message);
+  const sendChatMessage = async (message: string) => {
+    debugLog('🧪 Chat message:', message);
+    await sendMessage(message);
   };
 
   // Combine errors from both hooks
-  const error = speechRecognition.error || openai.error;
+  const error = speechError || openaiError;
 
   return {
     // Speech recognition state
-    isListening: speechRecognition.isListening,
-    partialTranscript: speechRecognition.partialTranscript,
-    finalTranscript: speechRecognition.transcript,
-    selectedLanguage: speechRecognition.language,
+    isListening,
+    partialTranscript,
+    finalTranscript: transcript,
+    selectedLanguage: language,
     availableLanguages: AVAILABLE_LANGUAGES,
 
     // LLM state
-    messages: openai.messages,
-    isProcessing: openai.isProcessing,
-    apiKey: openai.apiKey,
-    lastPayload: openai.lastPayload,
+    messages,
+    isProcessing,
+    apiKey,
+    lastPayload,
 
     // Combined error
     error,
@@ -147,9 +171,9 @@ export function useVoiceChat(): UseVoiceChatResult {
     // Actions
     startVoiceInput,
     stopVoiceInput,
-    setLanguage: speechRecognition.setLanguage,
+    setLanguage,
     clearConversation,
-    setApiKey: openai.setApiKey,
-    sendTestMessage,
+    setApiKey,
+    sendMessage: sendChatMessage,
   };
 }

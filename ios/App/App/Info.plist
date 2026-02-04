@@ -46,7 +46,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<true/>
+	<false/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDarkContent</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to your microphone to record audio.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

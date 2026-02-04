@@ -5,6 +5,7 @@
 import OpenAI from 'openai';
 import type { ChatMessage } from '../types/chat';
 import { OPENAI_CONFIG } from '../config/openai';
+import { debugLog } from '../lib/debug';
 
 /**
  * Validate OpenAI API key format
@@ -30,12 +31,27 @@ function convertToOpenAIFormat(messages: ChatMessage[]): Array<{
 /**
  * Send message to OpenAI and get response
  */
+let cachedClient: OpenAI | null = null;
+let cachedApiKey: string | null = null;
+
+function getOpenAIClient(apiKey: string): OpenAI {
+  if (!cachedClient || cachedApiKey !== apiKey) {
+    cachedApiKey = apiKey;
+    cachedClient = new OpenAI({
+      apiKey,
+      dangerouslyAllowBrowser: true, // Required for client-side usage
+    });
+  }
+
+  return cachedClient;
+}
+
 export async function sendMessage(
   apiKey: string,
   messages: ChatMessage[]
 ): Promise<string> {
-  console.log('🔧 sendMessage called');
-  console.log('📋 Messages to send:', messages.length);
+  debugLog('🔧 sendMessage called');
+  debugLog('📋 Messages to send:', messages.length);
 
   if (!validateApiKey(apiKey)) {
     console.error('❌ Invalid API key format');
@@ -49,13 +65,10 @@ export async function sendMessage(
   }
 
   try {
-    const openai = new OpenAI({
-      apiKey,
-      dangerouslyAllowBrowser: true, // Required for client-side usage
-    });
+    const openai = getOpenAIClient(apiKey);
 
     const formattedMessages = convertToOpenAIFormat(messages);
-    console.log('📤 Sending to OpenAI:', {
+    debugLog('📤 Sending to OpenAI:', {
       model: OPENAI_CONFIG.DEFAULT_MODEL,
       messageCount: formattedMessages.length,
     });
@@ -66,7 +79,7 @@ export async function sendMessage(
       max_completion_tokens: OPENAI_CONFIG.DEFAULT_MAX_TOKENS,
     });
 
-    console.log('📥 OpenAI response received:', response);
+    debugLog('📥 OpenAI response received:', response);
 
     const content = response.choices[0]?.message?.content;
 
@@ -75,7 +88,7 @@ export async function sendMessage(
       throw new Error('No response from OpenAI');
     }
 
-    console.log('✅ Response content:', content);
+    debugLog('✅ Response content:', content);
     return content;
   } catch (error) {
     // Handle specific OpenAI errors

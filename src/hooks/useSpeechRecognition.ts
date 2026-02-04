@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
+import { debugLog } from '../lib/debug';
 
 /**
  * Custom React hook for iOS Speech Recognition using Capacitor
@@ -52,7 +53,8 @@ export function useSpeechRecognition() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [language, setLanguage] = useState('en-US');
-  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const partialListenerRef = useRef<PluginListenerHandle | null>(null);
 
   useEffect(() => {
     const checkAvailability = async () => {
@@ -76,6 +78,18 @@ export function useSpeechRecognition() {
     };
 
     checkAvailability();
+
+    return () => {
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
+
+      if (partialListenerRef.current) {
+        partialListenerRef.current.remove();
+        partialListenerRef.current = null;
+      }
+    };
   }, []);
 
   const requestPermission = useCallback(async () => {
@@ -94,8 +108,43 @@ export function useSpeechRecognition() {
     }
   }, []);
 
+  const stopListening = useCallback(async () => {
+    try {
+      // Clear silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
+
+      await SpeechRecognition.stop();
+      setIsListening(false);
+
+      // On iOS, the final result comes through partialResults listener
+      // We'll commit the partial transcript to the main transcript
+      setPartialTranscript((currentPartial) => {
+        if (currentPartial) {
+          debugLog('📝 Final transcript:', currentPartial);
+          setTranscript(currentPartial);
+        }
+        return ''; // Clear partial transcript
+      });
+
+      if (partialListenerRef.current) {
+        await partialListenerRef.current.remove();
+        partialListenerRef.current = null;
+      }
+    } catch (err) {
+      console.error('Error stopping speech recognition:', err);
+      setIsListening(false);
+    }
+  }, []);
+
   const startListening = useCallback(async () => {
     setError(null);
+
+    if (isListening) {
+      return;
+    }
 
     if (!isAvailable) {
       setError('Speech recognition not available on this device');
@@ -119,55 +168,32 @@ export function useSpeechRecognition() {
         popup: false,
       });
 
-      SpeechRecognition.addListener('partialResults', (data) => {
-        if (data.matches && data.matches.length > 0) {
-          setPartialTranscript(data.matches[0]);
+      if (!partialListenerRef.current) {
+        partialListenerRef.current = await SpeechRecognition.addListener(
+          'partialResults',
+          (data) => {
+            if (data.matches && data.matches.length > 0) {
+              setPartialTranscript(data.matches[0]);
 
-          // Reset silence timeout - auto-stop after 2 seconds of silence
-          if (silenceTimeoutRef.current) {
-            clearTimeout(silenceTimeoutRef.current);
+              // Reset silence timeout - auto-stop after 2 seconds of silence
+              if (silenceTimeoutRef.current) {
+                clearTimeout(silenceTimeoutRef.current);
+              }
+
+              silenceTimeoutRef.current = setTimeout(() => {
+                debugLog('⏱️ Auto-stopping after silence');
+                stopListening();
+              }, 2000);
+            }
           }
-
-          silenceTimeoutRef.current = setTimeout(() => {
-            console.log('⏱️ Auto-stopping after silence');
-            stopListening();
-          }, 2000);
-        }
-      });
+        );
+      }
     } catch (err) {
       console.error('Error starting speech recognition:', err);
       setError('Failed to start speech recognition');
       setIsListening(false);
     }
-  }, [isAvailable, hasPermission, requestPermission, language]);
-
-  const stopListening = useCallback(async () => {
-    try {
-      // Clear silence timeout
-      if (silenceTimeoutRef.current) {
-        clearTimeout(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = null;
-      }
-
-      await SpeechRecognition.stop();
-      setIsListening(false);
-
-      // On iOS, the final result comes through partialResults listener
-      // We'll commit the partial transcript to the main transcript
-      setPartialTranscript((currentPartial) => {
-        if (currentPartial) {
-          console.log('📝 Final transcript:', currentPartial);
-          setTranscript(currentPartial);
-        }
-        return ''; // Clear partial transcript
-      });
-
-      await SpeechRecognition.removeAllListeners();
-    } catch (err) {
-      console.error('Error stopping speech recognition:', err);
-      setIsListening(false);
-    }
-  }, []);
+  }, [hasPermission, isAvailable, isListening, language, requestPermission, stopListening]);
 
   const clearTranscript = useCallback(() => {
     setTranscript('');
