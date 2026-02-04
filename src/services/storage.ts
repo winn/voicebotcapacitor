@@ -7,7 +7,7 @@ import type { ChatMessage } from '../types/chat';
 import { debugLog } from '../lib/debug';
 
 const CONVERSATION_KEY = 'conversation_history';
-const MAX_MESSAGE_PAIRS = 10; // Keep last 10 user+assistant pairs
+const MAX_MESSAGE_PAIRS = 50; // Keep last 50 user+assistant pairs (increased from 10 for better context retention)
 
 export interface ConversationHistory {
   messages: ChatMessage[];
@@ -73,6 +73,8 @@ export async function saveConversationHistory(messages: ChatMessage[]): Promise<
     debugLog('💾 Saved conversation history:', messagesToSave.length, 'messages');
   } catch (error) {
     console.error('❌ Error saving conversation history:', error);
+    // Re-throw so calling code can handle the error if needed
+    throw new Error(`Failed to save conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

@@ -18,7 +18,601 @@
   </head>
 
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- API Key Setup Screen -->
+    <div id="api-key-setup" style="display: none; padding: 60px 20px 20px 20px; background: #000; min-height: 100vh;">
+      <div style="max-width: 400px; margin: 0 auto; background: #1C1C1E; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+        <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600; color: #fff;">OpenAI API Key Required</h2>
+        <p style="color: #999; font-size: 14px; margin: 0 0 20px 0;">Enter your OpenAI API key to use the voice assistant</p>
+
+        <input
+          type="text"
+          id="api-key-input"
+          placeholder="sk-..."
+          style="width: 100%; padding: 12px; border: 1px solid #3A3A3C; background: #2C2C2E; color: #fff; border-radius: 8px; font-size: 15px; margin-bottom: 12px; box-sizing: border-box;"
+        />
+
+        <button
+          id="save-api-key-btn"
+          style="width: 100%; padding: 14px; background: #10A37F; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;"
+        >
+          Save API Key
+        </button>
+
+        <p style="color: #666; font-size: 12px; margin: 16px 0 0 0; line-height: 1.5;">
+          Your API key is stored locally on your device and never sent anywhere except directly to OpenAI.
+        </p>
+      </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="messages-container" style="padding-top: 0; padding-bottom: 100px; padding-left: 0; padding-right: 0; min-height: 100vh; background: #000;">
+      <div style="text-align: center; color: #666; padding: 100px 20px;">
+        Type a message to start chatting
+      </div>
+    </div>
+
+    <div id="root" style="display: none;"></div>
+
+    <!-- IMMEDIATE BRIDGE SETUP - Before React loads -->
+    <script>
+      console.log('🚀 [IMMEDIATE] Setting up bridge with OpenAI...');
+
+      // Set bridge ready immediately
+      window.nativeBridgeReady = true;
+      console.log('✅ [IMMEDIATE] Bridge ready flag set to:', window.nativeBridgeReady);
+
+      // Message counter
+      let messageCount = 0;
+      let isProcessing = false;
+      let conversationHistory = [];
+      let thinkingIndicatorElement = null;
+      let isVoiceMode = false;
+      let isListening = false;
+
+      // Show thinking indicator (ChatGPT style)
+      function showThinkingIndicator() {
+        const container = document.getElementById('messages-container');
+        if (!container || thinkingIndicatorElement) return;
+
+        thinkingIndicatorElement = document.createElement('div');
+        thinkingIndicatorElement.id = 'thinking-indicator';
+        thinkingIndicatorElement.style.cssText = `
+          display: flex;
+          padding: 20px 16px;
+          animation: fadeIn 0.2s ease-out;
+        `;
+
+        const dots = document.createElement('div');
+        dots.style.cssText = `
+          display: flex;
+          gap: 4px;
+          align-items: center;
+        `;
+
+        for (let i = 0; i < 3; i++) {
+          const dot = document.createElement('div');
+          dot.style.cssText = `
+            width: 8px;
+            height: 8px;
+            background: #666;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+            animation-delay: ${i * 0.16}s;
+          `;
+          dots.appendChild(dot);
+        }
+
+        thinkingIndicatorElement.appendChild(dots);
+        container.appendChild(thinkingIndicatorElement);
+
+        // Add CSS animation for dots
+        if (!document.getElementById('thinking-animation-style')) {
+          const style = document.createElement('style');
+          style.id = 'thinking-animation-style';
+          style.textContent = `
+            @keyframes bounce {
+              0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+              40% { transform: scale(1); opacity: 1; }
+            }
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+
+        // Scroll to bottom
+        setTimeout(() => {
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 50);
+      }
+
+      // Remove thinking indicator
+      function removeThinkingIndicator() {
+        if (thinkingIndicatorElement) {
+          thinkingIndicatorElement.remove();
+          thinkingIndicatorElement = null;
+        }
+      }
+
+      // Voice mode UI elements
+      let voiceModeIndicator = null;
+      let partialTranscriptElement = null;
+
+      function showVoiceModeIndicator() {
+        // Don't show indicator - using input box for visual feedback
+      }
+
+      function hideVoiceModeIndicator() {
+        // Don't show indicator - using input box for visual feedback
+      }
+
+      function updateListeningIndicator(listening) {
+        // Don't show indicator - using input box for visual feedback
+      }
+
+      function showPartialTranscript(text) {
+        const container = document.getElementById('messages-container');
+        if (!container) return;
+
+        if (!partialTranscriptElement) {
+          partialTranscriptElement = document.createElement('div');
+          partialTranscriptElement.style.cssText = `
+            display: flex;
+            justify-content: flex-end;
+            padding: 12px 16px;
+            opacity: 0.6;
+          `;
+
+          const bubble = document.createElement('div');
+          bubble.style.cssText = `
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 20px;
+            background: #2F2F2F;
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            border: 1px dashed #666;
+          `;
+
+          partialTranscriptElement.appendChild(bubble);
+          container.appendChild(partialTranscriptElement);
+        }
+
+        // Update text
+        const bubble = partialTranscriptElement.querySelector('div');
+        if (bubble) {
+          bubble.textContent = text;
+        }
+
+        // Scroll to bottom
+        setTimeout(() => {
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 50);
+      }
+
+      function hidePartialTranscript() {
+        if (partialTranscriptElement) {
+          partialTranscriptElement.remove();
+          partialTranscriptElement = null;
+        }
+      }
+
+      // OpenAI Configuration
+      const OPENAI_CONFIG = {
+        model: 'gpt-4o-mini',
+        maxTokens: 500,
+        systemPrompt: 'You are a helpful voice assistant. Provide concise, clear, and friendly responses suitable for voice interaction.'
+      };
+
+      // Get API key from localStorage or env
+      function getAPIKey() {
+        const localKey = localStorage.getItem('openai_api_key');
+        if (localKey) {
+          console.log('🔑 Using API key from localStorage');
+          return localKey;
+        }
+        // Fallback to import.meta.env would be handled by Vite, but we're not using Vite build here
+        // So we'll just use localStorage
+        console.warn('⚠️ No API key found in localStorage');
+        return null;
+      }
+
+      // Load conversation history from Capacitor Preferences
+      async function loadConversationHistory() {
+        try {
+          if (window.Capacitor && window.Capacitor.Plugins.Preferences) {
+            const { value } = await window.Capacitor.Plugins.Preferences.get({ key: 'conversation_history' });
+            if (value) {
+              const history = JSON.parse(value);
+              conversationHistory = history.messages || [];
+              console.log('📚 Loaded conversation history:', conversationHistory.length, 'messages');
+
+              // Render existing messages
+              conversationHistory.forEach(msg => {
+                if (msg.role !== 'system') {
+                  addMessageToUI(msg.content, msg.role === 'user');
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('❌ Failed to load conversation history:', error);
+        }
+      }
+
+      // Save conversation history with sliding window (50 pairs = 100 messages)
+      async function saveConversationHistory() {
+        try {
+          if (window.Capacitor && window.Capacitor.Plugins.Preferences) {
+            // Separate system message from conversation
+            const systemMessage = conversationHistory.find(msg => msg.role === 'system');
+            const conversationMessages = conversationHistory.filter(msg => msg.role !== 'system');
+
+            // Keep only the last 100 messages (50 pairs)
+            const maxMessages = 100;
+            const recentMessages = conversationMessages.slice(-maxMessages);
+
+            // Reconstruct with system message first
+            const messagesToSave = systemMessage
+              ? [systemMessage, ...recentMessages]
+              : recentMessages;
+
+            await window.Capacitor.Plugins.Preferences.set({
+              key: 'conversation_history',
+              value: JSON.stringify({ messages: messagesToSave })
+            });
+
+            console.log('💾 Saved conversation history:', messagesToSave.length, 'messages');
+          }
+        } catch (error) {
+          console.error('❌ Failed to save conversation history:', error);
+        }
+      }
+
+      // Retry logic with exponential backoff
+      async function retryWithBackoff(fn, maxRetries = 3) {
+        for (let i = 0; i < maxRetries; i++) {
+          try {
+            return await fn();
+          } catch (error) {
+            const isLastAttempt = i === maxRetries - 1;
+            const shouldRetry = error.status === 429 || error.status === 500 || error.status === 503 || error.message.includes('fetch');
+
+            if (isLastAttempt || !shouldRetry) {
+              throw error;
+            }
+
+            const delay = 1000 * Math.pow(2, i); // 1s, 2s, 4s
+            console.log(`⏳ Retry ${i + 1}/${maxRetries} after ${delay}ms...`);
+
+            // Update banner with retry status
+            const banner = document.querySelector('div[style*="lime"]');
+            if (banner) {
+              banner.textContent = `⏳ Retrying (${i + 1}/${maxRetries})...`;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
+
+      // Call OpenAI API
+      async function callOpenAI(userMessage) {
+        const apiKey = getAPIKey();
+        if (!apiKey) {
+          throw new Error('No API key found. Please set your OpenAI API key in localStorage as "openai_api_key"');
+        }
+
+        // Add system message if this is first message
+        if (conversationHistory.length === 0) {
+          conversationHistory.push({
+            role: 'system',
+            content: OPENAI_CONFIG.systemPrompt
+          });
+        }
+
+        // Add user message to history
+        conversationHistory.push({
+          role: 'user',
+          content: userMessage
+        });
+
+        console.log('📤 Calling OpenAI API with', conversationHistory.length, 'messages');
+
+        const response = await retryWithBackoff(async () => {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: OPENAI_CONFIG.model,
+              messages: conversationHistory.map(msg => ({
+                role: msg.role,
+                content: msg.content
+              })),
+              max_completion_tokens: OPENAI_CONFIG.maxTokens
+            })
+          });
+
+          if (!res.ok) {
+            const error = new Error(`OpenAI API error: ${res.status}`);
+            error.status = res.status;
+            throw error;
+          }
+
+          return res.json();
+        });
+
+        console.log('📥 OpenAI response received');
+
+        const assistantMessage = response.choices[0]?.message?.content;
+        if (!assistantMessage) {
+          throw new Error('No response from OpenAI');
+        }
+
+        // Add assistant message to history
+        conversationHistory.push({
+          role: 'assistant',
+          content: assistantMessage
+        });
+
+        // Save to storage
+        await saveConversationHistory();
+
+        return assistantMessage;
+      }
+
+      // Function to add message to UI using direct DOM manipulation (ChatGPT style)
+      function addMessageToUI(content, isUser) {
+        console.log('➕ [UI] Adding message:', { content, isUser, currentCount: messageCount });
+
+        const container = document.getElementById('messages-container');
+        if (!container) {
+          console.error('❌ [UI] Container not found!');
+          alert('ERROR: Container not found!');
+          return;
+        }
+
+        // Clear placeholder if this is first message
+        if (messageCount === 0) {
+          console.log('🗑️ [UI] Clearing placeholder');
+          container.innerHTML = '';
+        }
+        messageCount++;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.style.cssText = `
+          display: flex;
+          justify-content: ${isUser ? 'flex-end' : 'flex-start'};
+          padding: ${isUser ? '12px 16px' : '20px 16px'};
+          animation: slideIn 0.2s ease-out;
+        `;
+
+        if (isUser) {
+          // User message: Dark gray bubble on right (like ChatGPT)
+          const bubble = document.createElement('div');
+          bubble.style.cssText = `
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 20px;
+            background: #2F2F2F;
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+          `;
+          bubble.textContent = content;
+          messageDiv.appendChild(bubble);
+        } else {
+          // Assistant message: Plain text on left (like ChatGPT)
+          const textWrapper = document.createElement('div');
+          textWrapper.style.cssText = `
+            max-width: 100%;
+            color: #ECECF1;
+            font-size: 16px;
+            line-height: 1.6;
+            word-wrap: break-word;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+            white-space: pre-wrap;
+          `;
+          textWrapper.textContent = content;
+          messageDiv.appendChild(textWrapper);
+        }
+
+        container.appendChild(messageDiv);
+
+        console.log('✅ [UI] Message added, total:', messageCount);
+
+        // Scroll to bottom
+        setTimeout(() => {
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 50);
+      }
+
+      // Set up OpenAI handlers with DOM manipulation
+      window.onNativeMessage = async function(text) {
+        console.log('📨 [IMMEDIATE] Message received:', text);
+
+        if (isProcessing) {
+          console.warn('⚠️ Already processing, ignoring message');
+          return;
+        }
+
+        if (!text.trim()) {
+          console.warn('⚠️ Empty message, ignoring');
+          return;
+        }
+
+        isProcessing = true;
+
+        // Add user message
+        addMessageToUI(text, true);
+
+        // Show thinking indicator
+        showThinkingIndicator();
+
+        try {
+          // Call OpenAI
+          const response = await callOpenAI(text);
+          console.log('✅ Got OpenAI response');
+
+          // Remove thinking indicator
+          removeThinkingIndicator();
+
+          // Add assistant response
+          addMessageToUI(response, false);
+
+          // Auto-restart listening if in voice mode
+          if (isVoiceMode) {
+            console.log('🎤 Voice mode: Auto-restarting listening...');
+            setTimeout(() => {
+              if (window.startNativeListening) {
+                window.startNativeListening();
+              }
+            }, 500); // Small delay before restarting
+          }
+        } catch (error) {
+          console.error('❌ OpenAI error:', error);
+
+          // Remove thinking indicator
+          removeThinkingIndicator();
+
+          // Show error in UI
+          const errorMsg = error.message || 'An error occurred';
+          addMessageToUI('❌ Error: ' + errorMsg, false);
+
+          // Show alert with helpful message
+          if (errorMsg.includes('API key')) {
+            alert('API Key Error\n\nPlease set your OpenAI API key:\n\n1. Open Safari Web Inspector\n2. In Console, run:\nlocalStorage.setItem("openai_api_key", "sk-your-key-here")\n3. Reload the app');
+          }
+        } finally {
+          isProcessing = false;
+        }
+      };
+
+      window.onNativeTranscript = function(data) {
+        console.log('🎤 [IMMEDIATE] Transcript received:', data);
+
+        // Don't show partial transcript in messages - it's shown in input box now
+        if (data.isFinal) {
+          // Send final transcript
+          window.onNativeMessage(data.text);
+        }
+      };
+
+      // Voice mode controls
+      window.onVoiceModeChanged = function(enabled) {
+        console.log('🎤 Voice mode changed:', enabled);
+        isVoiceMode = enabled;
+
+        if (enabled) {
+          showVoiceModeIndicator();
+        } else {
+          hideVoiceModeIndicator();
+        }
+      };
+
+      window.onListeningStateChanged = function(listening) {
+        console.log('🎤 Listening state changed:', listening);
+        isListening = listening;
+        updateListeningIndicator(listening);
+      };
+
+      console.log('🎉 [IMMEDIATE] Handlers ready with OpenAI, bridge flag =', window.nativeBridgeReady);
+
+      // Load conversation history when page loads
+      if (window.Capacitor) {
+        window.addEventListener('DOMContentLoaded', function() {
+          console.log('📱 Capacitor detected, loading conversation history...');
+          loadConversationHistory();
+        });
+      } else {
+        console.log('🌐 Running in browser, skipping storage load');
+      }
+
+      // Wait for Capacitor to be ready
+      document.addEventListener('deviceready', function() {
+        console.log('📱 Device ready, loading conversation history...');
+        loadConversationHistory();
+      });
+
+      // Check for API key on load
+      function checkAPIKey() {
+        const apiKey = getAPIKey();
+        if (!apiKey) {
+          console.warn('⚠️ No API key found, showing setup screen');
+          document.getElementById('api-key-setup').style.display = 'block';
+          document.getElementById('messages-container').style.display = 'none';
+          return false;
+        }
+        return true;
+      }
+
+      // Save API key handler
+      function setupAPIKeyHandler() {
+        const saveBtn = document.getElementById('save-api-key-btn');
+        const input = document.getElementById('api-key-input');
+
+        if (saveBtn && input) {
+          saveBtn.addEventListener('click', function() {
+            const apiKey = input.value.trim();
+
+            if (!apiKey) {
+              alert('Please enter an API key');
+              return;
+            }
+
+            if (!apiKey.startsWith('sk-')) {
+              alert('Invalid API key format. OpenAI API keys start with "sk-"');
+              return;
+            }
+
+            // Save to localStorage
+            localStorage.setItem('openai_api_key', apiKey);
+            console.log('✅ API key saved');
+
+            // Hide setup, show messages
+            document.getElementById('api-key-setup').style.display = 'none';
+            document.getElementById('messages-container').style.display = 'block';
+
+            alert('API key saved! You can now start chatting.');
+          });
+
+          // Allow Enter key to save
+          input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+              saveBtn.click();
+            }
+          });
+        }
+      }
+
+      // Initialize on page load
+      window.addEventListener('DOMContentLoaded', function() {
+        console.log('📄 Page loaded, initializing...');
+        setupAPIKeyHandler();
+        checkAPIKey();
+      });
+    </script>
+
+    <!-- Don't load React for now, keep it simple -->
+    <!-- <script type="module" src="/src/main.tsx"></script> -->
   </body>
 </html>

@@ -7,10 +7,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Force WKWebView to respect safe areas and not render under status bar
-        if let bridge = self.window?.rootViewController as? CAPBridgeViewController {
-            bridge.webView?.scrollView.contentInsetAdjustmentBehavior = .always
+        // Create window
+        window = UIWindow(frame: UIScreen.main.bounds)
+
+        // Create native container
+        let nativeContainer = NativeContainerViewController()
+
+        // Load the bundled web app from public folder
+        if let indexPath = Bundle.main.path(forResource: "public/index", ofType: "html") {
+            let indexURL = URL(fileURLWithPath: indexPath)
+            let publicURL = indexURL.deletingLastPathComponent()
+            nativeContainer.loadWebApp(url: indexURL, readAccessURL: publicURL)
         }
+
+        window?.rootViewController = nativeContainer
+        window?.makeKeyAndVisible()
 
         return true
     }

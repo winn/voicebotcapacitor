@@ -120,11 +120,13 @@ export function useSpeechRecognition() {
       setIsListening(false);
 
       // On iOS, the final result comes through partialResults listener
-      // We'll commit the partial transcript to the main transcript
+      // Commit the partial transcript to the main transcript
+      // Fixed: Use separate state update to avoid race condition
       setPartialTranscript((currentPartial) => {
         if (currentPartial) {
           debugLog('📝 Final transcript:', currentPartial);
-          setTranscript(currentPartial);
+          // Use a separate effect or direct call instead of nested setState
+          setTimeout(() => setTranscript(currentPartial), 0);
         }
         return ''; // Clear partial transcript
       });
