@@ -10,6 +10,7 @@ class NativeContainerViewController: UIViewController {
     private var webView: WKWebView!
     private let composerVC = ChatComposerViewController()
     private let speechManager = SpeechRecognitionManager()
+    private let ttsManager = TextToSpeechManager()
 
     private var isVoiceMode = false
     private var pendingURL: URL?
@@ -26,6 +27,7 @@ class NativeContainerViewController: UIViewController {
         setupWebView()
         setupComposer()
         setupSpeechManager()
+        setupTTSManager()
         setupLayout()
         setupKeyboardHandling()
 
@@ -107,8 +109,9 @@ class NativeContainerViewController: UIViewController {
         webConfig.allowsInlineMediaPlayback = true
         webConfig.mediaTypesRequiringUserActionForPlayback = []
 
-        // Add message handler BEFORE creating webview
+        // Add message handlers BEFORE creating webview
         webConfig.userContentController.add(self, name: "startListening")
+        webConfig.userContentController.add(self, name: "speakText")
 
         webView = WKWebView(frame: .zero, configuration: webConfig)
         webView.navigationDelegate = self
@@ -148,6 +151,31 @@ class NativeContainerViewController: UIViewController {
         }
 
         speechManager.onError = { [weak self] error in
+            self?.showError(error)
+        }
+    }
+
+    private func setupTTSManager() {
+        ttsManager.onSpeechStarted = { [weak self] in
+            print("🔊 [TTS] Speech started callback")
+            // Stop listening while speaking
+            self?.speechManager.stop()
+            self?.notifyListeningStateChanged(listening: false)
+        }
+
+        ttsManager.onSpeechFinished = { [weak self] in
+            print("✅ [TTS] Speech finished callback")
+            // Restart listening if in voice mode
+            if let self = self, self.isVoiceMode {
+                print("🎤 [TTS] Voice mode active, restarting listening...")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.startListening()
+                }
+            }
+        }
+
+        ttsManager.onError = { [weak self] error in
+            print("❌ [TTS] Error: \(error)")
             self?.showError(error)
         }
     }
@@ -414,11 +442,16 @@ class NativeContainerViewController: UIViewController {
 
     // MARK: - WebView Bridge
     private func setupWebViewBridge() {
-        // Expose startListening function to webview
+        // Expose native functions to webview
         let js = """
         window.startNativeListening = function() {
             console.log('🎤 [WEB->NATIVE] Request to start listening');
             webkit.messageHandlers.startListening.postMessage({});
+        };
+
+        window.speakNativeText = function(text) {
+            console.log('🔊 [WEB->NATIVE] Request to speak:', text);
+            webkit.messageHandlers.speakText.postMessage({ text: text });
         };
         """
         webView.evaluateJavaScript(js, completionHandler: nil)
@@ -439,6 +472,15 @@ extension NativeContainerViewController: WKScriptMessageHandler {
         if message.name == "startListening" {
             print("📥 [WEB->NATIVE] Received startListening request")
             startListening()
+        } else if message.name == "speakText" {
+            print("📥 [WEB->NATIVE] Received speakText request")
+            if let body = message.body as? [String: Any],
+               let text = body["text"] as? String {
+                print("🔊 [WEB->NATIVE] Speaking text: '\(text)'")
+                ttsManager.speak(text)
+            } else {
+                print("⚠️ [WEB->NATIVE] Invalid speakText message format")
+            }
         }
     }
 }

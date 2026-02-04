@@ -479,14 +479,21 @@
           // Add assistant response
           addMessageToUI(response, false);
 
-          // Auto-restart listening if in voice mode
+          // Speak response if in voice mode
           if (isVoiceMode) {
-            console.log('🎤 Voice mode: Auto-restarting listening...');
-            setTimeout(() => {
-              if (window.startNativeListening) {
-                window.startNativeListening();
-              }
-            }, 500); // Small delay before restarting
+            console.log('🔊 Voice mode: Speaking response with TTS...');
+            if (window.speakNativeText) {
+              window.speakNativeText(response);
+              // TTS manager will auto-restart listening when speech finishes
+            } else {
+              console.warn('⚠️ speakNativeText not available, falling back to auto-restart');
+              // Fallback: restart listening without TTS
+              setTimeout(() => {
+                if (window.startNativeListening) {
+                  window.startNativeListening();
+                }
+              }, 500);
+            }
           }
         } catch (error) {
           console.error('❌ OpenAI error:', error);
