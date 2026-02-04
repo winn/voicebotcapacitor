@@ -16,6 +16,7 @@ class NativeContainerViewController: UIViewController {
     private var pendingURL: URL?
     private var pendingReadAccessURL: URL?
     private var composerBottomConstraint: NSLayoutConstraint?
+    private var currentLanguage: Language = SettingsViewController.getCurrentLanguage()
 
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -60,6 +61,7 @@ class NativeContainerViewController: UIViewController {
         let menuButton = UIButton(type: .system)
         menuButton.setImage(UIImage(systemName: "line.3.horizontal"), for: .normal)
         menuButton.tintColor = .white
+        menuButton.addTarget(self, action: #selector(menuTapped), for: .touchUpInside)
         headerView.addSubview(menuButton)
         menuButton.translatesAutoresizingMaskIntoConstraints = false
 
@@ -137,6 +139,9 @@ class NativeContainerViewController: UIViewController {
     }
 
     private func setupSpeechManager() {
+        // Set initial language from saved preference
+        speechManager.updateLanguage(currentLanguage.speechCode)
+
         speechManager.onPartialTranscript = { [weak self] text in
             // Show partial in input box
             self?.composerVC.updateInput(text)
@@ -156,6 +161,9 @@ class NativeContainerViewController: UIViewController {
     }
 
     private func setupTTSManager() {
+        // Set initial language from saved preference
+        ttsManager.updateLanguage(currentLanguage.ttsCode)
+
         ttsManager.onSpeechStarted = { [weak self] in
             print("🔊 [TTS] Speech started callback")
             // Stop listening while speaking
@@ -261,6 +269,16 @@ class NativeContainerViewController: UIViewController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Menu
+    @objc private func menuTapped() {
+        print("📋 [MENU] Opening settings...")
+        let settingsVC = SettingsViewController(currentLanguage: currentLanguage)
+        settingsVC.delegate = self
+        let navController = UINavigationController(rootViewController: settingsVC)
+        navController.modalPresentationStyle = .formSheet
+        present(navController, animated: true)
     }
 
     // MARK: - Voice Mode
@@ -463,6 +481,55 @@ extension NativeContainerViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         print("✅ [WEBVIEW] Page loaded, setting up bridge...")
         setupWebViewBridge()
+    }
+}
+
+// MARK: - SettingsViewControllerDelegate
+extension NativeContainerViewController: SettingsViewControllerDelegate {
+    func settingsDidChangeLanguage(_ language: Language) {
+        print("🌍 [SETTINGS] Language changed to: \(language.displayName)")
+        currentLanguage = language
+
+        // Update speech recognition language
+        speechManager.updateLanguage(language.speechCode)
+
+        // Update TTS language
+        ttsManager.updateLanguage(language.ttsCode)
+
+        // Show toast notification
+        showToast("Language changed to \(language.displayName)")
+    }
+
+    private func showToast(_ message: String) {
+        let toast = UILabel()
+        toast.text = message
+        toast.textColor = .white
+        toast.backgroundColor = UIColor(white: 0.2, alpha: 0.9)
+        toast.textAlignment = .center
+        toast.font = .systemFont(ofSize: 14, weight: .medium)
+        toast.layer.cornerRadius = 20
+        toast.clipsToBounds = true
+        toast.alpha = 0
+
+        view.addSubview(toast)
+        toast.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            toast.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            toast.bottomAnchor.constraint(equalTo: composerVC.view.topAnchor, constant: -16),
+            toast.heightAnchor.constraint(equalToConstant: 40),
+            toast.widthAnchor.constraint(greaterThanOrEqualToConstant: 200)
+        ])
+
+        UIView.animate(withDuration: 0.3, animations: {
+            toast.alpha = 1
+        }, completion: { _ in
+            UIView.animate(withDuration: 0.3, delay: 2.0, animations: {
+                toast.alpha = 0
+            }, completion: { _ in
+                toast.removeFromSuperview()
+            })
+        })
     }
 }
 

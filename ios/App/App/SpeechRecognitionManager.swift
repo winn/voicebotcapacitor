@@ -4,10 +4,11 @@ import AVFoundation
 class SpeechRecognitionManager: NSObject {
 
     // MARK: - Properties
-    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    private var currentLanguageCode: String = "en-US"
 
     var onPartialTranscript: ((String) -> Void)?
     var onFinalTranscript: ((String) -> Void)?
@@ -19,6 +20,24 @@ class SpeechRecognitionManager: NSObject {
     private var lastTranscript: String = ""
     private let silenceTimeout: TimeInterval = 1.5 // Stop after 1.5 seconds of silence
     private let maxRecordingTimeout: TimeInterval = 30.0 // Maximum recording time
+
+    // MARK: - Initialization
+    override init() {
+        super.init()
+        updateLanguage("en-US")
+    }
+
+    // MARK: - Language Update
+    func updateLanguage(_ languageCode: String) {
+        print("🌍 [SPEECH] Updating language to: \(languageCode)")
+        currentLanguageCode = languageCode
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: languageCode))
+
+        if speechRecognizer == nil {
+            print("⚠️ [SPEECH] Language not supported, falling back to en-US")
+            speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+        }
+    }
 
     // MARK: - Permission & Start
     func requestPermissionAndStart() {

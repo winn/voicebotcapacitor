@@ -10,6 +10,7 @@ class TextToSpeechManager: NSObject, AVSpeechSynthesizerDelegate {
     var onError: ((String) -> Void)?
 
     private var isSpeaking = false
+    private var currentLanguageCode: String = "en-US"
 
     // MARK: - Initialization
     override init() {
@@ -18,6 +19,11 @@ class TextToSpeechManager: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     // MARK: - Public Methods
+    func updateLanguage(_ languageCode: String) {
+        print("🌍 [TTS] Updating language to: \(languageCode)")
+        currentLanguageCode = languageCode
+    }
+
     func speak(_ text: String) {
         print("🔊 [TTS] speak called with text: '\(text)'")
 
@@ -46,10 +52,14 @@ class TextToSpeechManager: NSObject, AVSpeechSynthesizerDelegate {
 
         // Create utterance
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.voice = AVSpeechSynthesisVoice(language: currentLanguageCode)
         utterance.rate = 0.5 // Normal speed (0.0 = slowest, 1.0 = fastest)
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
+
+        if utterance.voice == nil {
+            print("⚠️ [TTS] Voice not available for \(currentLanguageCode), using default")
+        }
 
         print("🔊 [TTS] Starting speech synthesis")
         isSpeaking = true

@@ -14,7 +14,8 @@ app_group = project.main_group['App'] || project.main_group.new_group('App')
 files_to_add = [
   '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/NativeContainerViewController.swift',
   '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/SpeechRecognitionManager.swift',
-  '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/TextToSpeechManager.swift'
+  '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/TextToSpeechManager.swift',
+  '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/SettingsViewController.swift'
 ]
 
 files_to_add.each do |file_path|

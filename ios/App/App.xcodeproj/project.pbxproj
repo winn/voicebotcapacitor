@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09256528A4F37C61FFCF8169 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023F586C97E46B7EEF60553D /* SettingsViewController.swift */; };
 		133372A51719C87780AF232C /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8C4149A00BFED60D62A9C888 /* Pods_App.framework */; };
 		1B5D8703CEF134FFF8E7C320 /* TextToSpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DAAAE5252F5662B846BDEE5 /* TextToSpeechManager.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -24,6 +25,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		023F586C97E46B7EEF60553D /* SettingsViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
 		0DAAAE5252F5662B846BDEE5 /* TextToSpeechManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextToSpeechManager.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		4D47F50256179103ED5FC7C4 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -92,6 +94,7 @@
 				F2F195D2BA5D7FFD6686668E /* NativeContainerViewController.swift */,
 				CB794752027F9FD56D432942 /* SpeechRecognitionManager.swift */,
 				0DAAAE5252F5662B846BDEE5 /* TextToSpeechManager.swift */,
+				023F586C97E46B7EEF60553D /* SettingsViewController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -242,6 +245,7 @@
 				5CFA62F2FDA6D448C34BB662 /* NativeContainerViewController.swift in Sources */,
 				99B3915E4B2585C868423533 /* SpeechRecognitionManager.swift in Sources */,
 				1B5D8703CEF134FFF8E7C320 /* TextToSpeechManager.swift in Sources */,
+				09256528A4F37C61FFCF8169 /* SettingsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
