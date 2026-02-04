@@ -1,5 +1,7 @@
 import { VoiceChatApp } from "@/components/VoiceChatApp";
-import { Component, ReactNode } from "react";
+import { Component, ReactNode, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { StatusBar } from "@capacitor/status-bar";
 import { debugLog } from "./lib/debug";
 
 // Error Boundary to catch rendering errors
@@ -39,6 +41,35 @@ class ErrorBoundary extends Component<
 
 const App = () => {
   debugLog('✅ App component rendering');
+
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'ios') return;
+
+    (async () => {
+      try {
+        await StatusBar.setOverlaysWebView({ overlay: false });
+        debugLog('✅ StatusBar configured: overlay disabled');
+      } catch (e) {
+        console.error('❌ StatusBar overlay config failed', e);
+      }
+    })();
+
+    // Diagnostic logging after 1 second
+    setTimeout(() => {
+      const root = document.documentElement;
+      const safeTop = getComputedStyle(root).getPropertyValue('--safe-top');
+      const bodyPadding = getComputedStyle(document.body).paddingTop;
+      const viewportOffset = window.visualViewport?.offsetTop;
+
+      console.log('📊 Safe area diagnostics:', {
+        safeTop,
+        bodyPadding,
+        viewportOffset,
+        platform: Capacitor.getPlatform()
+      });
+    }, 1000);
+  }, []);
+
   try {
     return (
       <ErrorBoundary>

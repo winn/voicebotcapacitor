@@ -7,6 +7,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Force WKWebView to respect safe areas and not render under status bar
+        if let bridge = self.window?.rootViewController as? CAPBridgeViewController {
+            bridge.webView?.scrollView.contentInsetAdjustmentBehavior = .always
+        }
+
         return true
     }
 

@@ -4,11 +4,16 @@ const config: CapacitorConfig = {
   appId: 'com.winn.voicebotcapacitor',
   appName: 'Voice Bot',
   webDir: 'dist',
+  ios: {
+    contentInset: 'always'
+  },
   plugins: {
     Keyboard: {
-      resize: 'body',
-      style: 'dark',
-      resizeOnFullScreen: true
+      resize: 'native',
+      style: 'dark'
+    },
+    StatusBar: {
+      overlaysWebView: false
     }
   }
 };

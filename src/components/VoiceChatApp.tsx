@@ -6,6 +6,7 @@
 import { Mic, MicOff, Square, Info, Send } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Keyboard } from '@capacitor/keyboard';
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
 import {
@@ -103,8 +104,14 @@ export function VoiceChatApp() {
 
   const enterVoiceMode = useCallback(async () => {
     setIsVoiceMode(true);
-    startVoiceInput();
     await hideComposer();
+    if (Capacitor.isNativePlatform()) {
+      await Keyboard.hide();
+    }
+    if (typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement | null)?.blur();
+    }
+    startVoiceInput();
   }, [hideComposer, startVoiceInput]);
 
   const exitVoiceMode = useCallback(async () => {
@@ -153,6 +160,24 @@ export function VoiceChatApp() {
       voiceSub?.remove();
     };
   }, [enterVoiceMode, isProcessing, sendMessage, showComposer]);
+
+  // Keep composer hidden and keyboard dismissed while in voice mode
+  useEffect(() => {
+    if (!isNative || !isVoiceMode) return;
+
+    const keepComposerHidden = async () => {
+      await hideComposer();
+      await Keyboard.hide();
+    };
+
+    // Hide immediately
+    keepComposerHidden();
+
+    // Keep checking every 500ms to ensure it stays hidden
+    const interval = setInterval(keepComposerHidden, 500);
+
+    return () => clearInterval(interval);
+  }, [isVoiceMode, isNative, hideComposer]);
 
   const isMicDisabled = isProcessing;
 
@@ -240,7 +265,7 @@ export function VoiceChatApp() {
         )}
 
         {isVoiceMode && (
-          <div className="border-t border-border bg-background px-4 py-4">
+          <div className="app-composer">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium">
