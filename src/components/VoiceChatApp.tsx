@@ -3,7 +3,7 @@
  * Combines speech recognition with OpenAI LLM for ChatGPT-like voice mode
  */
 
-import { Mic, MicOff, Square, Info } from 'lucide-react';
+import { Mic, MicOff, Square, Info, Send } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Button } from './ui/button';
@@ -44,6 +44,7 @@ export function VoiceChatApp() {
 
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [textInput, setTextInput] = useState('');
   const isNative = Capacitor.isNativePlatform();
   const [composerStatus, setComposerStatus] = useState<'idle' | 'ready' | 'error'>('idle');
   const [composerError, setComposerError] = useState<string | null>(null);
@@ -71,6 +72,20 @@ export function VoiceChatApp() {
       stopVoiceInput();
     } else {
       startVoiceInput();
+    }
+  };
+
+  const handleSend = async () => {
+    const trimmed = textInput.trim();
+    if (!trimmed || isProcessing) return;
+    await sendMessage(trimmed);
+    setTextInput('');
+  };
+
+  const handleEnterToSend = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleSend();
     }
   };
 
@@ -273,10 +288,59 @@ export function VoiceChatApp() {
           </div>
         )}
 
-        {!isVoiceMode && !isNative && (
-          <div className="app-composer border-t border-border">
-            <div className="text-xs text-muted-foreground">
-              Text input is handled by the native composer.
+        {!isVoiceMode && (
+          <div className="app-composer border-t border-border px-4 py-3">
+            <div className="relative flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Message..."
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={handleEnterToSend}
+                  disabled={isProcessing}
+                  className="w-full h-11 pl-4 pr-20 rounded-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button
+                    onClick={enterVoiceMode}
+                    disabled={isProcessing}
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                    aria-label="Start voice mode"
+                  >
+                    <Mic className="h-4 w-4" />
+                  </button>
+                  {textInput.trim() && (
+                    <button
+                      onClick={handleSend}
+                      disabled={isProcessing}
+                      className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-50"
+                      aria-label="Send message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground px-2">
+              <button
+                onClick={() => {
+                  if (confirm('Clear your API key? You will need to enter it again.')) {
+                    setApiKey('');
+                  }
+                }}
+                className="underline hover:text-foreground"
+              >
+                Change API Key
+              </button>
+              <button
+                onClick={clearConversation}
+                disabled={isProcessing}
+                className="underline hover:text-foreground disabled:opacity-50"
+              >
+                Clear Chat
+              </button>
             </div>
           </div>
         )}
