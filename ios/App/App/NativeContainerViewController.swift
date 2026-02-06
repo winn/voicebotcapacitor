@@ -164,6 +164,9 @@ class NativeContainerViewController: UIViewController {
         // Set initial language from saved preference
         ttsManager.updateLanguage(currentLanguage.ttsCode)
 
+        // Initialize TTS providers with API keys from localStorage
+        initializeTTSProviders()
+
         ttsManager.onSpeechStarted = { [weak self] in
             print("🔊 [TTS] Speech started callback")
             // Stop listening while speaking
@@ -185,6 +188,25 @@ class NativeContainerViewController: UIViewController {
         ttsManager.onError = { [weak self] error in
             print("❌ [TTS] Error: \(error)")
             self?.showError(error)
+        }
+    }
+
+    private func initializeTTSProviders() {
+        // Load API keys from localStorage asynchronously
+        let js = """
+        JSON.stringify({
+            elevenlabs: localStorage.getItem('elevenlabs_api_key') || '',
+            botnoi: localStorage.getItem('botnoi_api_key') || ''
+        })
+        """
+
+        webView?.evaluateJavaScript(js) { [weak self] result, error in
+            if let jsonString = result as? String,
+               let data = jsonString.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
+                print("🔑 [TTS] Loaded API keys from localStorage")
+                self?.ttsManager.initializeProviders(apiKeys: dict)
+            }
         }
     }
 
@@ -274,11 +296,38 @@ class NativeContainerViewController: UIViewController {
     // MARK: - Menu
     @objc private func menuTapped() {
         print("📋 [MENU] Opening settings...")
-        let settingsVC = SettingsViewController(currentLanguage: currentLanguage)
+
+        // Load API keys from localStorage (injected at build time)
+        let apiKeys = loadAPIKeys()
+
+        let settingsVC = SettingsViewController(currentLanguage: currentLanguage, apiKeys: apiKeys)
         settingsVC.delegate = self
         let navController = UINavigationController(rootViewController: settingsVC)
         navController.modalPresentationStyle = .formSheet
         present(navController, animated: true)
+    }
+
+    private func loadAPIKeys() -> [String: String] {
+        var keys: [String: String] = [:]
+
+        // Try to read API keys from JavaScript localStorage
+        let js = """
+        JSON.stringify({
+            elevenlabs: localStorage.getItem('elevenlabs_api_key') || '',
+            botnoi: localStorage.getItem('botnoi_api_key') || ''
+        })
+        """
+
+        webView.evaluateJavaScript(js) { result, error in
+            if let jsonString = result as? String,
+               let data = jsonString.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
+                print("🔑 [KEYS] Loaded from localStorage: \(dict.keys)")
+            }
+        }
+
+        // For now, return empty - they'll be loaded async
+        return keys
     }
 
     // MARK: - Voice Mode
@@ -498,6 +547,37 @@ extension NativeContainerViewController: SettingsViewControllerDelegate {
 
         // Show toast notification
         showToast("Language changed to \(language.displayName)")
+    }
+
+    func settingsDidChangeTTSProvider(_ provider: TTSProvider, voiceId: String?) {
+        print("🔊 [SETTINGS] TTS Provider changed to: \(provider.displayName), voiceId: \(voiceId ?? "default")")
+
+        // Load API keys and update provider
+        let js = """
+        JSON.stringify({
+            elevenlabs: localStorage.getItem('elevenlabs_api_key') || '',
+            botnoi: localStorage.getItem('botnoi_api_key') || ''
+        })
+        """
+
+        webView?.evaluateJavaScript(js) { [weak self] result, error in
+            guard let self = self else { return }
+
+            var apiKeys: [String: String] = [:]
+            if let jsonString = result as? String,
+               let data = jsonString.data(using: .utf8),
+               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
+                apiKeys = dict
+            }
+
+            self.ttsManager.updateProvider(provider, voiceId: voiceId, apiKeys: apiKeys)
+
+            // Show toast notification
+            DispatchQueue.main.async {
+                let voiceText = voiceId != nil ? " (\(voiceId!))" : ""
+                self.showToast("TTS changed to \(provider.displayName)\(voiceText)")
+            }
+        }
     }
 
     private func showToast(_ message: String) {

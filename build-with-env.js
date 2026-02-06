@@ -42,29 +42,57 @@ function build() {
   // Load environment
   const env = loadEnvFile();
   const apiKey = env.VITE_OPENAI_API_KEY;
+  const elevenLabsKey = env.VITE_ELEVENLABS_API_KEY || '';
+  const botnoiKey = env.VITE_BOTNOI_API_KEY || '';
 
   if (!apiKey || apiKey === 'your-api-key-here') {
-    console.log('⚠️  No valid API key in .env.local');
+    console.log('⚠️  No valid OpenAI API key in .env.local');
     console.log('ℹ️  User will need to enter API key in the app');
   } else {
-    console.log('✅ API key found in .env.local');
+    console.log('✅ OpenAI API key found in .env.local');
+  }
+
+  if (elevenLabsKey && !elevenLabsKey.includes('your-')) {
+    console.log('✅ ElevenLabs API key found in .env.local');
+  }
+
+  if (botnoiKey && !botnoiKey.includes('your-')) {
+    console.log('✅ BOTNOI API key found in .env.local');
   }
 
   // Read index.html
   const htmlPath = path.join(__dirname, 'index.html');
   let html = fs.readFileSync(htmlPath, 'utf-8');
 
-  // Inject API key into localStorage initialization script
+  // Inject API keys into localStorage initialization script
   const initScript = `
     <script>
-      // Pre-populate API key from build-time env if available
+      // Pre-populate API keys from build-time env if available
       (function() {
         const buildTimeApiKey = '${apiKey || ''}';
         if (buildTimeApiKey && buildTimeApiKey.startsWith('sk-')) {
           const existingKey = localStorage.getItem('openai_api_key');
           if (!existingKey) {
-            console.log('🔑 Using API key from .env.local');
+            console.log('🔑 Using OpenAI API key from .env.local');
             localStorage.setItem('openai_api_key', buildTimeApiKey);
+          }
+        }
+
+        const elevenLabsKey = '${elevenLabsKey || ''}';
+        if (elevenLabsKey && !elevenLabsKey.includes('your-')) {
+          const existingKey = localStorage.getItem('elevenlabs_api_key');
+          if (!existingKey) {
+            console.log('🔑 Using ElevenLabs API key from .env.local');
+            localStorage.setItem('elevenlabs_api_key', elevenLabsKey);
+          }
+        }
+
+        const botnoiKey = '${botnoiKey || ''}';
+        if (botnoiKey && !botnoiKey.includes('your-')) {
+          const existingKey = localStorage.getItem('botnoi_api_key');
+          if (!existingKey) {
+            console.log('🔑 Using BOTNOI API key from .env.local');
+            localStorage.setItem('botnoi_api_key', botnoiKey);
           }
         }
       })();

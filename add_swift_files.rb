@@ -15,6 +15,7 @@ files_to_add = [
   '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/NativeContainerViewController.swift',
   '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/SpeechRecognitionManager.swift',
   '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/TextToSpeechManager.swift',
+  '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/TTSProvider.swift',
   '/Users/vwinnv/github/voicebotcapacitor/ios/App/App/SettingsViewController.swift'
 ]
 
