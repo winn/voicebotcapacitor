@@ -1,4 +1,5 @@
 import UIKit
+import AVFoundation
 
 protocol SettingsViewControllerDelegate: AnyObject {
     func settingsDidChangeLanguage(_ language: Language)
@@ -36,6 +37,10 @@ class SettingsViewController: UIViewController {
     private var expandedSections: Set<Int> = []
     private var apiKeys: [String: String] = [:]
 
+    // Cached TTS managers (keep alive for API callbacks)
+    private var elevenLabsManager: ElevenLabsTTSManager?
+    private var botnoiManager: BotnoiTTSManager?
+
     // Supported languages
     static let languages: [Language] = [
         Language(code: "en", displayName: "English", speechCode: "en-US", ttsCode: "en-US"),
@@ -72,23 +77,13 @@ class SettingsViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        view.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
-
         setupNavigationBar()
         setupTableView()
+        updateColors()
     }
 
     private func setupNavigationBar() {
         title = "Settings"
-
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.shadowColor = UIColor(white: 0.2, alpha: 0.3)
-
-        navigationController?.navigationBar.standardAppearance = appearance
-        navigationController?.navigationBar.scrollEdgeAppearance = appearance
 
         let closeButton = UIBarButtonItem(
             image: UIImage(systemName: "xmark"),
@@ -96,14 +91,12 @@ class SettingsViewController: UIViewController {
             target: self,
             action: #selector(closeTapped)
         )
-        closeButton.tintColor = .white
         navigationItem.rightBarButtonItem = closeButton
     }
 
     private func setupTableView() {
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "Cell")
         tableView.register(ExpandableHeaderView.self, forHeaderFooterViewReuseIdentifier: "Header")
 
@@ -116,6 +109,49 @@ class SettingsViewController: UIViewController {
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+    }
+
+    private func updateColors() {
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+
+        // Update view and table background
+        if isDarkMode {
+            view.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+            tableView.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+        } else {
+            view.backgroundColor = UIColor(white: 0.95, alpha: 1.0)
+            tableView.backgroundColor = UIColor(white: 0.95, alpha: 1.0)
+        }
+
+        // Update navigation bar
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+
+        if isDarkMode {
+            appearance.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+            appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
+            appearance.shadowColor = UIColor(white: 0.2, alpha: 0.3)
+            navigationItem.rightBarButtonItem?.tintColor = .white
+        } else {
+            appearance.backgroundColor = UIColor(white: 1.0, alpha: 1.0)
+            appearance.titleTextAttributes = [.foregroundColor: UIColor.black]
+            appearance.shadowColor = UIColor(white: 0.8, alpha: 0.3)
+            navigationItem.rightBarButtonItem?.tintColor = .black
+        }
+
+        navigationController?.navigationBar.standardAppearance = appearance
+        navigationController?.navigationBar.scrollEdgeAppearance = appearance
+
+        // Reload table to update cell colors
+        tableView.reloadData()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateColors()
+        }
     }
 
     @objc private func closeTapped() {
@@ -142,6 +178,78 @@ class SettingsViewController: UIViewController {
         let savedCode = UserDefaults.standard.string(forKey: "selectedLanguageCode") ?? "en"
         return languages.first(where: { $0.code == savedCode }) ?? languages[0]
     }
+
+    private func showVoiceDownloadAlert(language: String) {
+        let alert = UIAlertController(
+            title: "Voice Not Available",
+            message: "No iOS voices are installed for \(language).\n\nTo download voices:\n1. Open Settings app\n2. Go to Accessibility → Spoken Content → Voices\n3. Select \(language) and download a voice",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Open Settings", style: .default) { _ in
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        })
+
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+
+        present(alert, animated: true)
+    }
+
+    private func showElevenLabsLanguageAlert(language: String) {
+        let baseLanguageCode = String(selectedLanguage.ttsCode.prefix(2))
+
+        let message: String
+        let switchAction: String
+
+        if baseLanguageCode == "th" {
+            // Thai-specific message
+            message = "ElevenLabs doesn't support Thai language.\n\nFor Thai, please use:\n• BOTNOI Voice (Best for Thai)\n• iOS System Voices"
+            switchAction = "Switch to BOTNOI"
+        } else {
+            // Generic message for other unsupported languages
+            message = "ElevenLabs doesn't have voices optimized for \(language).\n\nRecommended:\n• iOS System Voices\n• Try English voices (may work with accent)"
+            switchAction = "Switch to iOS"
+        }
+
+        let alert = UIAlertController(
+            title: "Language Not Supported",
+            message: message,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: switchAction, style: .default) { [weak self] _ in
+            let newProvider: TTSProvider = baseLanguageCode == "th" ? .botnoi : .native
+            self?.selectedTTSProvider = newProvider
+            UserDefaults.standard.set(newProvider.rawValue, forKey: "selectedTTSProvider")
+            self?.tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
+            self?.delegate?.settingsDidChangeTTSProvider(newProvider, voiceId: nil)
+        })
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+
+        present(alert, animated: true)
+    }
+
+    private func showBotnoiLanguageAlert(language: String) {
+        let alert = UIAlertController(
+            title: "Thai Language Only",
+            message: "BOTNOI Voice is optimized for Thai language only.\n\nFor \(language), please use:\n• iOS (System voices)\n• ElevenLabs (Multilingual support)",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Switch to iOS", style: .default) { [weak self] _ in
+            self?.selectedTTSProvider = .native
+            UserDefaults.standard.set(TTSProvider.native.rawValue, forKey: "selectedTTSProvider")
+            self?.tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
+            self?.delegate?.settingsDidChangeTTSProvider(.native, voiceId: nil)
+        })
+
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+
+        present(alert, animated: true)
+    }
 }
 
 // MARK: - UITableViewDataSource
@@ -163,13 +271,10 @@ extension SettingsViewController: UITableViewDataSource {
         case .language:
             return Self.languages.count
         case .ttsProvider:
-            // Show provider options
-            if selectedTTSProvider == .native {
-                return TTSProvider.allCases.count
-            } else {
-                // Show providers + voices for selected provider
-                return TTSProvider.allCases.count + getVoicesForProvider(selectedTTSProvider).count
-            }
+            // Count providers + voices for selected provider
+            var count = TTSProvider.allCases.count
+            count += getVoicesForProvider(selectedTTSProvider).count
+            return count
         }
     }
 
@@ -177,8 +282,9 @@ extension SettingsViewController: UITableViewDataSource {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
         guard let section = SettingsSection(rawValue: indexPath.section) else { return cell }
 
-        cell.backgroundColor = UIColor(white: 0.11, alpha: 1.0)
-        cell.textLabel?.textColor = .white
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+        cell.backgroundColor = isDarkMode ? UIColor(white: 0.11, alpha: 1.0) : .white
+        cell.textLabel?.textColor = isDarkMode ? .white : .black
 
         switch section {
         case .language:
@@ -189,22 +295,42 @@ extension SettingsViewController: UITableViewDataSource {
 
         case .ttsProvider:
             let providers = TTSProvider.allCases
-            if indexPath.row < providers.count {
-                // Provider row
-                let provider = providers[indexPath.row]
-                cell.textLabel?.text = provider.displayName
-                cell.accessoryType = (provider == selectedTTSProvider) ? .checkmark : .none
-                cell.tintColor = .systemBlue
-            } else {
-                // Voice row (indented)
-                let voiceIndex = indexPath.row - providers.count
-                let voices = getVoicesForProvider(selectedTTSProvider)
-                if voiceIndex < voices.count {
-                    let voice = voices[voiceIndex]
-                    cell.textLabel?.text = "    \(voice.name)" // Indented
-                    cell.textLabel?.font = .systemFont(ofSize: 15)
-                    cell.accessoryType = (voice.id == selectedVoiceId) ? .checkmark : .none
-                    cell.tintColor = .systemGreen
+            var currentRow = 0
+            var foundMatch = false
+
+            // Iterate through providers and their voices
+            for provider in providers {
+                if currentRow == indexPath.row {
+                    // This is a provider row
+                    cell.textLabel?.text = provider.displayName
+                    cell.textLabel?.font = .systemFont(ofSize: 16, weight: .regular)
+                    cell.accessoryType = (provider == selectedTTSProvider) ? .checkmark : .none
+                    cell.tintColor = .systemBlue
+                    foundMatch = true
+                    break
+                }
+                currentRow += 1
+
+                // If this provider is selected, show its voices
+                if provider == selectedTTSProvider {
+                    let voices = getVoicesForProvider(provider)
+                    for voice in voices {
+                        if currentRow == indexPath.row {
+                            // This is a voice row (indented and styled differently)
+                            cell.textLabel?.text = "    \(voice.name)"
+                            cell.textLabel?.font = .systemFont(ofSize: 15)
+                            cell.accessoryType = (voice.id == selectedVoiceId) ? .checkmark : .none
+                            cell.tintColor = .systemGreen
+
+                            // Make voice rows look more distinct
+                            let isDarkMode = traitCollection.userInterfaceStyle == .dark
+                            cell.backgroundColor = isDarkMode ? UIColor(white: 0.08, alpha: 1.0) : UIColor(white: 0.97, alpha: 1.0)
+                            foundMatch = true
+                            break
+                        }
+                        currentRow += 1
+                    }
+                    if foundMatch { break }
                 }
             }
         }
@@ -214,18 +340,137 @@ extension SettingsViewController: UITableViewDataSource {
 
     private func getVoicesForProvider(_ provider: TTSProvider) -> [TTSVoice] {
         switch provider {
+        case .native:
+            // Get high-quality iOS system voices for the selected language
+            let allVoices = AVSpeechSynthesisVoice.speechVoices()
+            let currentLanguageCode = selectedLanguage.ttsCode // e.g., "en-US", "th-TH"
+            let languagePrefix = String(currentLanguageCode.prefix(2)) // e.g., "en", "th"
+
+            // Filter for voices matching the selected language
+            let languageMatchingVoices = allVoices.filter { voice in
+                voice.language.hasPrefix(languagePrefix)
+            }
+
+            // If no voices found for this language, show alert to user
+            if languageMatchingVoices.isEmpty {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showVoiceDownloadAlert(language: self?.selectedLanguage.displayName ?? "this language")
+                }
+                // Return placeholder item
+                return [TTSVoice(id: "download_required", name: "⚠️ Download voices from iOS Settings", provider: .native)]
+            }
+
+            // Further filter for enhanced quality voices
+            let enhancedVoices = languageMatchingVoices.filter { voice in
+                if #available(iOS 16.0, *) {
+                    return voice.quality == .enhanced || voice.quality == .premium
+                } else {
+                    return voice.quality == .enhanced
+                }
+            }
+
+            // If no enhanced voices for this language, use default quality
+            let voicesToUse = enhancedVoices.isEmpty ? languageMatchingVoices : enhancedVoices
+
+            // Sort by quality (enhanced/premium first) and then by name
+            let sortedVoices = voicesToUse.sorted { voice1, voice2 in
+                if #available(iOS 16.0, *) {
+                    let quality1 = voice1.quality == .premium ? 3 : (voice1.quality == .enhanced ? 2 : 1)
+                    let quality2 = voice2.quality == .premium ? 3 : (voice2.quality == .enhanced ? 2 : 1)
+                    if quality1 != quality2 {
+                        return quality1 > quality2
+                    }
+                } else {
+                    let quality1 = voice1.quality == .enhanced ? 2 : 1
+                    let quality2 = voice2.quality == .enhanced ? 2 : 1
+                    if quality1 != quality2 {
+                        return quality1 > quality2
+                    }
+                }
+                return voice1.name < voice2.name
+            }
+
+            // Convert to TTSVoice
+            return sortedVoices.map { voice in
+                let qualityBadge: String
+                if #available(iOS 16.0, *) {
+                    qualityBadge = voice.quality == .premium ? " ⭐️" : (voice.quality == .enhanced ? " ✨" : "")
+                } else {
+                    qualityBadge = voice.quality == .enhanced ? " ✨" : ""
+                }
+                let displayName = "\(voice.name)\(qualityBadge)"
+                return TTSVoice(id: voice.identifier, name: displayName, provider: .native)
+            }
+
         case .elevenlabs:
             if let apiKey = apiKeys["elevenlabs"] {
-                let manager = ElevenLabsTTSManager(apiKey: apiKey)
-                return manager.getAvailableVoices()
+                // Create or reuse cached manager
+                if elevenLabsManager == nil {
+                    elevenLabsManager = ElevenLabsTTSManager(apiKey: apiKey)
+
+                    // Only fetch from API once when first created
+                    elevenLabsManager?.fetchVoicesFromAPI { [weak self] fetchedVoices in
+                        print("✅ ElevenLabs voices fetched: \(fetchedVoices.count)")
+                        // Refresh the voice list in the UI ONLY on first fetch
+                        DispatchQueue.main.async {
+                            if let self = self, self.selectedTTSProvider == .elevenlabs {
+                                self.tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
+                            }
+                        }
+                    }
+                }
+                guard let manager = elevenLabsManager else { return [] }
+
+                let currentLanguageCode = selectedLanguage.ttsCode // e.g., "en-US", "th-TH"
+
+                // Get voices filtered by language (uses cached data after first fetch)
+                let voices = manager.getAvailableVoices(forLanguage: currentLanguageCode)
+
+                // If no exact matches, show all voices as fallback
+                if voices.isEmpty {
+                    print("ℹ️ No exact language match for \(currentLanguageCode), showing all ElevenLabs voices")
+                    return manager.getAvailableVoices()
+                }
+
+                return voices
             }
         case .botnoi:
             if let apiKey = apiKeys["botnoi"] {
-                let manager = BotnoiTTSManager(apiKey: apiKey)
-                return manager.getAvailableVoices()
+                // Create or reuse cached manager
+                if botnoiManager == nil {
+                    print("🔊 [BOTNOI] Creating new manager instance")
+                    botnoiManager = BotnoiTTSManager(apiKey: apiKey)
+
+                    // Only fetch from API once when first created
+                    let currentLanguageCode = selectedLanguage.ttsCode
+                    botnoiManager?.fetchVoicesFromAPI { [weak self] fetchedVoices in
+                        print("✅ BOTNOI speakers fetched: \(fetchedVoices.count)")
+                        // Refresh the voice list in the UI ONLY on first fetch
+                        DispatchQueue.main.async {
+                            if let self = self, self.selectedTTSProvider == .botnoi {
+                                print("🔄 [BOTNOI] Reloading table with fetched voices")
+                                self.tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
+                            }
+                        }
+                    }
+                }
+                guard let manager = botnoiManager else { return [] }
+
+                let currentLanguageCode = selectedLanguage.ttsCode // e.g., "en-US", "th-TH"
+
+                // Get voices filtered by language (uses cached data after first fetch)
+                let voices = manager.getAvailableVoices(forLanguage: currentLanguageCode)
+
+                // If no voices available for this language, show alert
+                if voices.isEmpty {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.showBotnoiLanguageAlert(language: self?.selectedLanguage.displayName ?? "this language")
+                    }
+                    return [TTSVoice(id: "thai_only", name: "⚠️ BOTNOI Voice only supports Thai", provider: .botnoi)]
+                }
+
+                return voices
             }
-        case .native:
-            break
         }
         return []
     }
@@ -280,30 +525,39 @@ extension SettingsViewController: UITableViewDelegate {
             UserDefaults.standard.set(language.code, forKey: "selectedLanguageCode")
             delegate?.settingsDidChangeLanguage(language)
 
-            tableView.reloadSections(IndexSet(integer: indexPath.section), with: .none)
+            // Reload both sections: language AND TTS provider (because iOS voices change with language)
+            tableView.reloadSections(IndexSet(integersIn: 0...1), with: .none)
 
         case .ttsProvider:
             let providers = TTSProvider.allCases
-            if indexPath.row < providers.count {
-                // Selected a provider
-                let provider = providers[indexPath.row]
-                selectedTTSProvider = provider
-                selectedVoiceId = nil // Reset voice when changing provider
+            var currentRow = 0
 
-                delegate?.settingsDidChangeTTSProvider(provider, voiceId: nil)
+            // Find what was tapped
+            for provider in providers {
+                if currentRow == indexPath.row {
+                    // Tapped a provider
+                    selectedTTSProvider = provider
+                    selectedVoiceId = nil // Reset voice when changing provider
 
-                tableView.reloadSections(IndexSet(integer: indexPath.section), with: .automatic)
-            } else {
-                // Selected a voice
-                let voiceIndex = indexPath.row - providers.count
-                let voices = getVoicesForProvider(selectedTTSProvider)
-                if voiceIndex < voices.count {
-                    let voice = voices[voiceIndex]
-                    selectedVoiceId = voice.id
+                    delegate?.settingsDidChangeTTSProvider(provider, voiceId: nil)
+                    tableView.reloadSections(IndexSet(integer: indexPath.section), with: .automatic)
+                    return
+                }
+                currentRow += 1
 
-                    delegate?.settingsDidChangeTTSProvider(selectedTTSProvider, voiceId: voice.id)
-
-                    tableView.reloadSections(IndexSet(integer: indexPath.section), with: .none)
+                // Check voices for selected provider
+                if provider == selectedTTSProvider {
+                    let voices = getVoicesForProvider(provider)
+                    for voice in voices {
+                        if currentRow == indexPath.row {
+                            // Tapped a voice
+                            selectedVoiceId = voice.id
+                            delegate?.settingsDidChangeTTSProvider(selectedTTSProvider, voiceId: voice.id)
+                            tableView.reloadSections(IndexSet(integer: indexPath.section), with: .none)
+                            return
+                        }
+                        currentRow += 1
+                    }
                 }
             }
         }
@@ -331,17 +585,12 @@ class ExpandableHeaderView: UITableViewHeaderFooterView {
     }
 
     private func setupViews() {
-        contentView.backgroundColor = UIColor(white: 0.05, alpha: 1.0)
-
         titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
-        titleLabel.textColor = .white
-
         valueLabel.font = .systemFont(ofSize: 14)
-        valueLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
-
         chevronImageView.image = UIImage(systemName: "chevron.down")
-        chevronImageView.tintColor = UIColor(white: 0.6, alpha: 1.0)
         chevronImageView.contentMode = .scaleAspectFit
+
+        updateColors()
 
         contentView.addSubview(titleLabel)
         contentView.addSubview(valueLabel)
@@ -372,6 +621,32 @@ class ExpandableHeaderView: UITableViewHeaderFooterView {
         // Rotate chevron
         UIView.animate(withDuration: 0.3) {
             self.chevronImageView.transform = isExpanded ? CGAffineTransform(rotationAngle: .pi) : .identity
+        }
+
+        updateColors()
+    }
+
+    private func updateColors() {
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+
+        if isDarkMode {
+            contentView.backgroundColor = UIColor(white: 0.05, alpha: 1.0)
+            titleLabel.textColor = .white
+            valueLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
+            chevronImageView.tintColor = UIColor(white: 0.6, alpha: 1.0)
+        } else {
+            contentView.backgroundColor = UIColor(white: 0.95, alpha: 1.0)
+            titleLabel.textColor = .black
+            valueLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
+            chevronImageView.tintColor = UIColor(white: 0.5, alpha: 1.0)
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateColors()
         }
     }
 }
