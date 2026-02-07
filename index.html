@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>VoiceCapacitor</title>
     <meta name="description" content="iOS Speech Recognition app built with React, TypeScript, and Capacitor" />
@@ -241,7 +241,7 @@
               // Render existing messages
               conversationHistory.forEach(msg => {
                 if (msg.role !== 'system') {
-                  addMessageToUI(msg.content, msg.role === 'user');
+                  addMessageToUI(msg.content, msg.role === 'user', msg.role === 'assistant');
                 }
               });
             }
@@ -376,8 +376,8 @@
       }
 
       // Function to add message to UI using direct DOM manipulation (ChatGPT style)
-      function addMessageToUI(content, isUser) {
-        console.log('➕ [UI] Adding message:', { content, isUser, currentCount: messageCount });
+      function addMessageToUI(content, isUser, hasAudio = false) {
+        console.log('➕ [UI] Adding message:', { content, isUser, hasAudio, currentCount: messageCount });
 
         const container = document.getElementById('messages-container');
         if (!container) {
@@ -418,10 +418,72 @@
           bubble.textContent = content;
           messageDiv.appendChild(bubble);
         } else {
-          // Assistant message: Plain text on left (like ChatGPT)
+          // Assistant message: Plain text on left (like ChatGPT) with speaker icon if has audio
           const textWrapper = document.createElement('div');
           textWrapper.style.cssText = `
             max-width: 100%;
+            display: flex;
+            align-items: start;
+            gap: 8px;
+            ${hasAudio ? 'cursor: pointer;' : ''}
+            ${hasAudio ? 'opacity: 1; transition: opacity 0.2s;' : ''}
+          `;
+
+          if (hasAudio) {
+            textWrapper.addEventListener('mouseenter', () => {
+              textWrapper.style.opacity = '0.8';
+            });
+            textWrapper.addEventListener('mouseleave', () => {
+              textWrapper.style.opacity = '1';
+            });
+            textWrapper.addEventListener('click', () => {
+              console.log('🔊 Audio bubble clicked:', content);
+
+              // Generate message ID from text (same algorithm as native)
+              function getMessageId(text) {
+                let hash = 0;
+                for (let i = 0; i < text.length; i++) {
+                  const char = text.charCodeAt(i);
+                  hash = ((hash << 5) - hash) + char;
+                  hash = hash & hash;
+                }
+                return String(Math.abs(hash));
+              }
+
+              const messageId = getMessageId(content);
+              console.log('🔊 Message ID:', messageId, 'Current playing:', currentPlayingMessageId);
+
+              // If this message is currently playing, stop it
+              if (currentPlayingMessageId === messageId) {
+                console.log('🛑 Stopping current playback');
+                if (window.stopAudio) {
+                  window.stopAudio();
+                }
+                return;
+              }
+
+              // If another message is playing, switch to this one
+              if (currentPlayingMessageId !== null) {
+                console.log('🔄 Switching audio to new message');
+                if (window.switchAudio) {
+                  window.switchAudio(content);
+                  return;
+                }
+              }
+
+              // No audio playing, start normal playback
+              console.log('▶️ Starting normal playback');
+              if (window.replayAudioText) {
+                window.replayAudioText(content);
+              } else if (window.speakNativeText) {
+                window.speakNativeText(content);
+              }
+            });
+          }
+
+          const textContent = document.createElement('div');
+          textContent.style.cssText = `
+            flex: 1;
             color: #ECECF1;
             font-size: 16px;
             line-height: 1.6;
@@ -429,7 +491,42 @@
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
             white-space: pre-wrap;
           `;
-          textWrapper.textContent = content;
+          textContent.textContent = content;
+          textWrapper.appendChild(textContent);
+
+          // Add speaker icon if has audio
+          if (hasAudio) {
+            const speakerIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            speakerIcon.setAttribute('width', '16');
+            speakerIcon.setAttribute('height', '16');
+            speakerIcon.setAttribute('viewBox', '0 0 24 24');
+            speakerIcon.setAttribute('fill', 'none');
+            speakerIcon.setAttribute('stroke', '#999');
+            speakerIcon.setAttribute('stroke-width', '2');
+            speakerIcon.setAttribute('stroke-linecap', 'round');
+            speakerIcon.setAttribute('stroke-linejoin', 'round');
+            speakerIcon.style.cssText = 'flex-shrink: 0; margin-top: 4px; opacity: 0.6;';
+
+            const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path1.setAttribute('d', 'M11 5L6 9H2v6h4l5 4V5z');
+            const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path2.setAttribute('d', 'M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07');
+
+            speakerIcon.appendChild(path1);
+            speakerIcon.appendChild(path2);
+            textWrapper.appendChild(speakerIcon);
+
+            // Add hint text
+            const hint = document.createElement('div');
+            hint.style.cssText = `
+              font-size: 11px;
+              color: #666;
+              margin-top: 4px;
+            `;
+            hint.textContent = '• Tap to replay';
+            textContent.appendChild(hint);
+          }
+
           messageDiv.appendChild(textWrapper);
         }
 
@@ -476,8 +573,8 @@
           // Remove thinking indicator
           removeThinkingIndicator();
 
-          // Add assistant response
-          addMessageToUI(response, false);
+          // Add assistant response with audio indicator
+          addMessageToUI(response, false, true);
 
           // Speak response if in voice mode
           if (isVoiceMode) {
@@ -542,6 +639,22 @@
         updateListeningIndicator(listening);
       };
 
+      // Audio playback state tracking for native TTS
+      let currentPlayingMessageId = null;
+
+      window.onAudioPlaybackStarted = function(messageId) {
+        console.log('📥 [NATIVE->WEB] Audio playback started:', messageId);
+        currentPlayingMessageId = messageId;
+        // TODO: Update UI to show which message is playing
+      };
+
+      window.onAudioPlaybackStopped = function() {
+        console.log('📥 [NATIVE->WEB] Audio playback stopped');
+        currentPlayingMessageId = null;
+        // TODO: Update UI to remove playing indicator
+      };
+
+      console.log('✅ [IMMEDIATE] Registered audio playback state listeners');
       console.log('🎉 [IMMEDIATE] Handlers ready with OpenAI, bridge flag =', window.nativeBridgeReady);
 
       // Load conversation history when page loads

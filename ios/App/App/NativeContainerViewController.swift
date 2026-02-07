@@ -17,6 +17,8 @@ class NativeContainerViewController: UIViewController {
     private var pendingReadAccessURL: URL?
     private var composerBottomConstraint: NSLayoutConstraint?
     private var currentLanguage: Language = SettingsViewController.getCurrentLanguage()
+    private var pendingRestartListeningTask: DispatchWorkItem?
+    private var currentPlayingMessageId: String?
 
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -114,6 +116,9 @@ class NativeContainerViewController: UIViewController {
         // Add message handlers BEFORE creating webview
         webConfig.userContentController.add(self, name: "startListening")
         webConfig.userContentController.add(self, name: "speakText")
+        webConfig.userContentController.add(self, name: "replayText")
+        webConfig.userContentController.add(self, name: "stopAudio")
+        webConfig.userContentController.add(self, name: "switchAudio")
 
         webView = WKWebView(frame: .zero, configuration: webConfig)
         webView.navigationDelegate = self
@@ -169,19 +174,37 @@ class NativeContainerViewController: UIViewController {
 
         ttsManager.onSpeechStarted = { [weak self] in
             print("🔊 [TTS] Speech started callback")
+            // Cancel any pending restart tasks (fixes race condition when tapping replay quickly)
+            self?.pendingRestartListeningTask?.cancel()
+            self?.pendingRestartListeningTask = nil
+            print("🚫 [TTS] Canceled any pending mic restart")
             // Stop listening while speaking
             self?.speechManager.stop()
             self?.notifyListeningStateChanged(listening: false)
+            // Notify web layer
+            if let messageId = self?.currentPlayingMessageId {
+                self?.notifyWebPlaybackStarted(messageId: messageId)
+            }
         }
 
         ttsManager.onSpeechFinished = { [weak self] in
             print("✅ [TTS] Speech finished callback")
+            // Notify web layer
+            self?.notifyWebPlaybackStopped()
+            self?.currentPlayingMessageId = nil
             // Restart listening if in voice mode
             if let self = self, self.isVoiceMode {
-                print("🎤 [TTS] Voice mode active, restarting listening...")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.startListening()
+                print("🎤 [TTS] Voice mode active, scheduling mic restart in 0.5s...")
+                // Cancel any existing pending task
+                self.pendingRestartListeningTask?.cancel()
+                // Create new task
+                let task = DispatchWorkItem { [weak self] in
+                    print("⏰ [TTS] Executing scheduled mic restart")
+                    self?.startListening()
+                    self?.pendingRestartListeningTask = nil
                 }
+                self.pendingRestartListeningTask = task
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: task)
             }
         }
 
@@ -192,21 +215,21 @@ class NativeContainerViewController: UIViewController {
     }
 
     private func initializeTTSProviders() {
-        // Load API keys from localStorage asynchronously
-        let js = """
-        JSON.stringify({
-            elevenlabs: localStorage.getItem('elevenlabs_api_key') || '',
-            botnoi: localStorage.getItem('botnoi_api_key') || ''
-        })
-        """
+        // Load API keys from .env.local (injected at build time)
+        let apiKeys: [String: String] = [
+            "elevenlabs": "f69b6f515bbaa1a44b3f00a6e737dd0f93c985880a5f58e2cb167bd623097679",
+            "botnoi": "VTY5MDE5ODE0NDMwYTQxYWRmNWI1OGMwNDc4MDIyNzQ0NTYxODk0"
+        ]
 
-        webView?.evaluateJavaScript(js) { [weak self] result, error in
-            if let jsonString = result as? String,
-               let data = jsonString.data(using: .utf8),
-               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
-                print("🔑 [TTS] Loaded API keys from localStorage")
-                self?.ttsManager.initializeProviders(apiKeys: dict)
-            }
+        print("🔑 [TTS] Loaded API keys from build-time configuration")
+        ttsManager.initializeProviders(apiKeys: apiKeys)
+
+        // Re-initialize the saved provider now that we have API keys
+        if let savedProvider = UserDefaults.standard.string(forKey: "selectedTTSProvider"),
+           let provider = TTSProvider(rawValue: savedProvider) {
+            let savedVoiceId = UserDefaults.standard.string(forKey: "selectedTTSVoiceId")
+            print("🔊 [TTS] Re-initializing saved provider: \(provider.rawValue) with voice: \(savedVoiceId ?? "default")")
+            ttsManager.updateProvider(provider, voiceId: savedVoiceId, apiKeys: apiKeys)
         }
     }
 
@@ -308,25 +331,12 @@ class NativeContainerViewController: UIViewController {
     }
 
     private func loadAPIKeys() -> [String: String] {
-        var keys: [String: String] = [:]
-
-        // Try to read API keys from JavaScript localStorage
-        let js = """
-        JSON.stringify({
-            elevenlabs: localStorage.getItem('elevenlabs_api_key') || '',
-            botnoi: localStorage.getItem('botnoi_api_key') || ''
-        })
-        """
-
-        webView.evaluateJavaScript(js) { result, error in
-            if let jsonString = result as? String,
-               let data = jsonString.data(using: .utf8),
-               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
-                print("🔑 [KEYS] Loaded from localStorage: \(dict.keys)")
-            }
-        }
-
-        // For now, return empty - they'll be loaded async
+        // Load API keys from .env.local (injected at build time)
+        let keys = [
+            "elevenlabs": "f69b6f515bbaa1a44b3f00a6e737dd0f93c985880a5f58e2cb167bd623097679",
+            "botnoi": "VTY5MDE5ODE0NDMwYTQxYWRmNWI1OGMwNDc4MDIyNzQ0NTYxODk0"
+        ]
+        print("🔑 [KEYS] Loaded from build-time configuration")
         return keys
     }
 
@@ -520,8 +530,91 @@ class NativeContainerViewController: UIViewController {
             console.log('🔊 [WEB->NATIVE] Request to speak:', text);
             webkit.messageHandlers.speakText.postMessage({ text: text });
         };
+
+        window.replayAudioText = function(text) {
+            console.log('🔊 [WEB->NATIVE] Request to replay:', text);
+            webkit.messageHandlers.replayText.postMessage({ text: text });
+        };
+
+        window.stopAudio = function() {
+            console.log('🛑 [WEB->NATIVE] Request to stop audio');
+            webkit.messageHandlers.stopAudio.postMessage({});
+        };
+
+        window.switchAudio = function(text) {
+            console.log('🔄 [WEB->NATIVE] Request to switch audio:', text);
+            webkit.messageHandlers.switchAudio.postMessage({ text: text });
+        };
         """
         webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    private func notifyWebPlaybackStarted(messageId: String) {
+        print("📤 [NATIVE->WEB] Notifying playback started: \(messageId)")
+        let js = """
+        (function() {
+            console.log('🔍 [NATIVE->WEB] Checking playback callback...');
+            console.log('🔍 [NATIVE->WEB] typeof window.onAudioPlaybackStarted:', typeof window.onAudioPlaybackStarted);
+
+            if (typeof window.onAudioPlaybackStarted === 'function') {
+                console.log('✅ [NATIVE->WEB] Calling onAudioPlaybackStarted with:', '\(messageId)');
+                try {
+                    window.onAudioPlaybackStarted('\(messageId)');
+                    console.log('✅ [NATIVE->WEB] Callback executed successfully');
+                    return { success: true, called: true };
+                } catch (e) {
+                    console.error('❌ [NATIVE->WEB] Callback threw error:', e);
+                    return { success: false, error: e.toString(), called: true };
+                }
+            } else {
+                console.warn('⚠️ [NATIVE->WEB] Callback not defined, type:', typeof window.onAudioPlaybackStarted);
+                return { success: false, called: false, type: typeof window.onAudioPlaybackStarted };
+            }
+        })();
+        """
+        webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                print("❌ [NATIVE->WEB] Failed to evaluate start notification: \(error)")
+            } else if let resultDict = result as? [String: Any] {
+                print("📊 [NATIVE->WEB] Start notification result: \(resultDict)")
+            } else {
+                print("✅ [NATIVE->WEB] Start notification sent (result: \(String(describing: result)))")
+            }
+        }
+    }
+
+    private func notifyWebPlaybackStopped() {
+        print("📤 [NATIVE->WEB] Notifying playback stopped")
+        let js = """
+        (function() {
+            console.log('🔍 [NATIVE->WEB] Checking stop callback...');
+            console.log('🔍 [NATIVE->WEB] typeof window.onAudioPlaybackStopped:', typeof window.onAudioPlaybackStopped);
+
+            if (typeof window.onAudioPlaybackStopped === 'function') {
+                console.log('✅ [NATIVE->WEB] Calling onAudioPlaybackStopped');
+                try {
+                    window.onAudioPlaybackStopped();
+                    console.log('✅ [NATIVE->WEB] Stop callback executed successfully');
+                    return { success: true, called: true };
+                } catch (e) {
+                    console.error('❌ [NATIVE->WEB] Stop callback threw error:', e);
+                    return { success: false, error: e.toString(), called: true };
+                }
+            } else {
+                console.warn('⚠️ [NATIVE->WEB] Stop callback not defined');
+                return { success: false, called: false };
+            }
+        })();
+        """
+        webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                print("❌ [NATIVE->WEB] Failed to evaluate stop notification: \(error)")
+            } else if let resultDict = result as? [String: Any] {
+                print("📊 [NATIVE->WEB] Stop notification result: \(resultDict)")
+            } else {
+                print("✅ [NATIVE->WEB] Stop notification sent (result: \(String(describing: result)))")
+            }
+        }
     }
 }
 
@@ -552,31 +645,18 @@ extension NativeContainerViewController: SettingsViewControllerDelegate {
     func settingsDidChangeTTSProvider(_ provider: TTSProvider, voiceId: String?) {
         print("🔊 [SETTINGS] TTS Provider changed to: \(provider.displayName), voiceId: \(voiceId ?? "default")")
 
-        // Load API keys and update provider
-        let js = """
-        JSON.stringify({
-            elevenlabs: localStorage.getItem('elevenlabs_api_key') || '',
-            botnoi: localStorage.getItem('botnoi_api_key') || ''
-        })
-        """
+        // Load API keys from .env.local (injected at build time) and update provider
+        let apiKeys = [
+            "elevenlabs": "f69b6f515bbaa1a44b3f00a6e737dd0f93c985880a5f58e2cb167bd623097679",
+            "botnoi": "VTY5MDE5ODE0NDMwYTQxYWRmNWI1OGMwNDc4MDIyNzQ0NTYxODk0"
+        ]
 
-        webView?.evaluateJavaScript(js) { [weak self] result, error in
-            guard let self = self else { return }
+        ttsManager.updateProvider(provider, voiceId: voiceId, apiKeys: apiKeys)
 
-            var apiKeys: [String: String] = [:]
-            if let jsonString = result as? String,
-               let data = jsonString.data(using: .utf8),
-               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
-                apiKeys = dict
-            }
-
-            self.ttsManager.updateProvider(provider, voiceId: voiceId, apiKeys: apiKeys)
-
-            // Show toast notification
-            DispatchQueue.main.async {
-                let voiceText = voiceId != nil ? " (\(voiceId!))" : ""
-                self.showToast("TTS changed to \(provider.displayName)\(voiceText)")
-            }
+        // Show toast notification
+        DispatchQueue.main.async {
+            let voiceText = voiceId != nil ? " (\(voiceId!))" : ""
+            self.showToast("TTS changed to \(provider.displayName)\(voiceText)")
         }
     }
 
@@ -624,9 +704,44 @@ extension NativeContainerViewController: WKScriptMessageHandler {
             if let body = message.body as? [String: Any],
                let text = body["text"] as? String {
                 print("🔊 [WEB->NATIVE] Speaking text: '\(text)'")
+                // Generate message ID from text hash for tracking (JS-compatible)
+                let messageId = getJavaScriptCompatibleHash(for: text)
+                currentPlayingMessageId = messageId
                 ttsManager.speak(text)
             } else {
                 print("⚠️ [WEB->NATIVE] Invalid speakText message format")
+            }
+        } else if message.name == "replayText" {
+            print("📥 [WEB->NATIVE] Received replayText request")
+            if let body = message.body as? [String: Any],
+               let text = body["text"] as? String {
+                print("🔊 [WEB->NATIVE] Replaying cached audio for text")
+                // Generate message ID from text hash for tracking (JS-compatible)
+                let messageId = getJavaScriptCompatibleHash(for: text)
+                currentPlayingMessageId = messageId
+                ttsManager.replayAudio(text)
+            } else {
+                print("⚠️ [WEB->NATIVE] Invalid replayText message format")
+            }
+        } else if message.name == "stopAudio" {
+            print("📥 [WEB->NATIVE] Received stopAudio request")
+            ttsManager.stop()
+            currentPlayingMessageId = nil
+            notifyWebPlaybackStopped()
+        } else if message.name == "switchAudio" {
+            print("📥 [WEB->NATIVE] Received switchAudio request")
+            if let body = message.body as? [String: Any],
+               let text = body["text"] as? String {
+                print("🔄 [WEB->NATIVE] Switching to new audio for text")
+                // Stop current audio first
+                ttsManager.stop()
+                // Generate new message ID (JS-compatible)
+                let messageId = getJavaScriptCompatibleHash(for: text)
+                currentPlayingMessageId = messageId
+                // Start new playback
+                ttsManager.replayAudio(text)
+            } else {
+                print("⚠️ [WEB->NATIVE] Invalid switchAudio message format")
             }
         }
     }
