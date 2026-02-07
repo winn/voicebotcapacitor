@@ -14,35 +14,30 @@ class ChatComposerViewController: UIViewController, UITextViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // ChatGPT-style dark composer
-        view.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
-
-        container.backgroundColor = UIColor(white: 0.11, alpha: 1.0) // #1C1C1E
+        // Setup UI components
         container.layer.cornerRadius = 24
         container.layer.cornerCurve = .continuous
 
         input.font = .systemFont(ofSize: 16)
         input.textContainerInset = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         input.backgroundColor = .clear
-        input.textColor = .white
-        input.tintColor = .white
         input.isScrollEnabled = false
         input.delegate = self
 
         // Placeholder-like behavior
         if input.text.isEmpty {
             input.text = "Ask anything"
-            input.textColor = UIColor(white: 0.5, alpha: 1.0)
         }
 
         sendButton.setImage(UIImage(systemName: "arrow.up.circle.fill"), for: .normal)
-        sendButton.tintColor = UIColor(white: 0.5, alpha: 1.0)
         sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
         sendButton.isHidden = true // Show only when typing
 
         micButton.setImage(UIImage(systemName: "mic.fill"), for: .normal)
-        micButton.tintColor = .white
         micButton.addTarget(self, action: #selector(voiceTapped), for: .touchUpInside)
+
+        // Apply initial colors
+        updateColors()
 
         let stack = UIStackView(arrangedSubviews: [input, sendButton, micButton])
         stack.axis = .horizontal
@@ -79,14 +74,16 @@ class ChatComposerViewController: UIViewController, UITextViewDelegate {
     func textViewDidBeginEditing(_ textView: UITextView) {
         if textView.text == "Ask anything" {
             textView.text = ""
-            textView.textColor = .white
+            let isDarkMode = traitCollection.userInterfaceStyle == .dark
+            textView.textColor = isDarkMode ? .white : .black
         }
     }
 
     func textViewDidEndEditing(_ textView: UITextView) {
         if textView.text.isEmpty {
             textView.text = "Ask anything"
-            textView.textColor = UIColor(white: 0.5, alpha: 1.0)
+            let isDarkMode = traitCollection.userInterfaceStyle == .dark
+            textView.textColor = isDarkMode ? UIColor(white: 0.5, alpha: 1.0) : UIColor(white: 0.6, alpha: 1.0)
         }
     }
 
@@ -115,7 +112,8 @@ class ChatComposerViewController: UIViewController, UITextViewDelegate {
         guard !text.isEmpty && text != "Ask anything" else { return }
         onSend?(text)
         input.text = "Ask anything"
-        input.textColor = UIColor(white: 0.5, alpha: 1.0)
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+        input.textColor = isDarkMode ? UIColor(white: 0.5, alpha: 1.0) : UIColor(white: 0.6, alpha: 1.0)
         sendButton.isHidden = true
         micButton.isHidden = false
     }
@@ -127,15 +125,16 @@ class ChatComposerViewController: UIViewController, UITextViewDelegate {
     // MARK: - Voice Mode Control
     func setVoiceMode(_ enabled: Bool) {
         isInVoiceMode = enabled
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
 
         if enabled {
             // Change mic to stop icon
             micButton.setImage(UIImage(systemName: "stop.circle.fill"), for: .normal)
-            micButton.tintColor = .white
+            micButton.tintColor = isDarkMode ? .white : .black
 
             // Disable text editing
             input.isEditable = false
-            input.textColor = UIColor(white: 0.7, alpha: 1.0)
+            input.textColor = isDarkMode ? UIColor(white: 0.7, alpha: 1.0) : UIColor(white: 0.5, alpha: 1.0)
 
             // Hide send button
             sendButton.isHidden = true
@@ -143,27 +142,71 @@ class ChatComposerViewController: UIViewController, UITextViewDelegate {
         } else {
             // Change back to mic icon
             micButton.setImage(UIImage(systemName: "mic.fill"), for: .normal)
-            micButton.tintColor = .white
+            micButton.tintColor = isDarkMode ? .white : .black
 
             // Enable text editing
             input.isEditable = true
-            input.textColor = .white
+            input.textColor = isDarkMode ? .white : .black
 
             // Reset placeholder
             if input.text.isEmpty {
                 input.text = "Ask anything"
-                input.textColor = UIColor(white: 0.5, alpha: 1.0)
+                input.textColor = isDarkMode ? UIColor(white: 0.5, alpha: 1.0) : UIColor(white: 0.6, alpha: 1.0)
             }
         }
     }
 
     func updateInput(_ text: String) {
         input.text = text
-        input.textColor = .white
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+        input.textColor = isDarkMode ? .white : .black
     }
 
     func clearInput() {
         input.text = ""
-        input.textColor = UIColor(white: 0.5, alpha: 1.0)
+        updateColors()
+    }
+
+    // MARK: - Theme Support
+    private func updateColors() {
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+
+        if isDarkMode {
+            // Dark mode colors
+            view.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+            container.backgroundColor = UIColor(white: 0.11, alpha: 1.0) // #1C1C1E
+
+            if input.text == "Ask anything" {
+                input.textColor = UIColor(white: 0.5, alpha: 1.0)
+            } else {
+                input.textColor = .white
+            }
+            input.tintColor = .white
+
+            sendButton.tintColor = UIColor(white: 0.5, alpha: 1.0)
+            micButton.tintColor = .white
+        } else {
+            // Light mode colors
+            view.backgroundColor = UIColor(white: 1.0, alpha: 1.0)
+            container.backgroundColor = UIColor(white: 0.95, alpha: 1.0) // #F2F2F7
+
+            if input.text == "Ask anything" {
+                input.textColor = UIColor(white: 0.6, alpha: 1.0)
+            } else {
+                input.textColor = .black
+            }
+            input.tintColor = .systemBlue
+
+            sendButton.tintColor = UIColor(white: 0.4, alpha: 1.0)
+            micButton.tintColor = .black
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateColors()
+        }
     }
 }

@@ -48,12 +48,11 @@ class NativeContainerViewController: UIViewController {
 
     // MARK: - Setup
     private func setupHeader() {
-        // ChatGPT-style dark header
-        headerView.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+        // ChatGPT-style adaptive header (light/dark mode)
+        updateHeaderColors()
 
         titleLabel.text = "ChatGPT"
         titleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
-        titleLabel.textColor = .white
         titleLabel.textAlignment = .center
 
         headerView.addSubview(titleLabel)
@@ -62,15 +61,15 @@ class NativeContainerViewController: UIViewController {
         // Add menu button (left)
         let menuButton = UIButton(type: .system)
         menuButton.setImage(UIImage(systemName: "line.3.horizontal"), for: .normal)
-        menuButton.tintColor = .white
         menuButton.addTarget(self, action: #selector(menuTapped), for: .touchUpInside)
+        menuButton.tag = 100 // Tag for updating colors
         headerView.addSubview(menuButton)
         menuButton.translatesAutoresizingMaskIntoConstraints = false
 
         // Add new chat button (right)
         let newChatButton = UIButton(type: .system)
         newChatButton.setImage(UIImage(systemName: "square.and.pencil"), for: .normal)
-        newChatButton.tintColor = .white
+        newChatButton.tag = 101 // Tag for updating colors
         headerView.addSubview(newChatButton)
         newChatButton.translatesAutoresizingMaskIntoConstraints = false
 
@@ -91,7 +90,7 @@ class NativeContainerViewController: UIViewController {
 
         // Add subtle border
         let border = UIView()
-        border.backgroundColor = UIColor(white: 0.2, alpha: 0.3)
+        border.tag = 102 // Tag for updating colors
         headerView.addSubview(border)
         border.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -100,6 +99,73 @@ class NativeContainerViewController: UIViewController {
             border.bottomAnchor.constraint(equalTo: headerView.bottomAnchor),
             border.heightAnchor.constraint(equalToConstant: 0.5)
         ])
+    }
+
+    private func updateHeaderColors() {
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+
+        if isDarkMode {
+            // Dark mode: Black header with white text
+            headerView.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+            titleLabel.textColor = .white
+
+            // Only update webView if it exists
+            if webView != nil {
+                webView.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+            }
+
+            // Update button colors
+            if let menuButton = headerView.viewWithTag(100) as? UIButton {
+                menuButton.tintColor = .white
+            }
+            if let newChatButton = headerView.viewWithTag(101) as? UIButton {
+                newChatButton.tintColor = .white
+            }
+            if let border = headerView.viewWithTag(102) {
+                border.backgroundColor = UIColor(white: 0.2, alpha: 0.3)
+            }
+        } else {
+            // Light mode: White header with black text
+            headerView.backgroundColor = UIColor(white: 1.0, alpha: 1.0)
+            titleLabel.textColor = .black
+
+            // Only update webView if it exists
+            if webView != nil {
+                webView.backgroundColor = UIColor(white: 1.0, alpha: 1.0)
+            }
+
+            // Update button colors
+            if let menuButton = headerView.viewWithTag(100) as? UIButton {
+                menuButton.tintColor = .black
+            }
+            if let newChatButton = headerView.viewWithTag(101) as? UIButton {
+                newChatButton.tintColor = .black
+            }
+            if let border = headerView.viewWithTag(102) {
+                border.backgroundColor = UIColor(white: 0.8, alpha: 0.3)
+            }
+        }
+
+        // Update status bar style
+        setNeedsStatusBarAppearanceUpdate()
+
+        // Notify web layer (only if webView exists)
+        if webView != nil {
+            notifyWebThemeChanged(isDarkMode: isDarkMode)
+        }
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            print("🎨 [THEME] Appearance changed to: \(traitCollection.userInterfaceStyle == .dark ? "dark" : "light")")
+            updateHeaderColors()
+        }
     }
 
     private func setupWebView() {
@@ -126,8 +192,10 @@ class NativeContainerViewController: UIViewController {
         webView.scrollView.bounces = true
         webView.scrollView.alwaysBounceVertical = true
         webView.isOpaque = false
-        // ChatGPT dark background
-        webView.backgroundColor = UIColor(white: 0.0, alpha: 1.0)
+
+        // Set initial background based on theme
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+        webView.backgroundColor = isDarkMode ? UIColor(white: 0.0, alpha: 1.0) : UIColor(white: 1.0, alpha: 1.0)
     }
 
     private func setupComposer() {
@@ -616,6 +684,22 @@ class NativeContainerViewController: UIViewController {
             }
         }
     }
+
+    private func notifyWebThemeChanged(isDarkMode: Bool) {
+        print("📤 [NATIVE->WEB] Notifying theme changed: \(isDarkMode ? "dark" : "light")")
+        let js = """
+        if (window.onThemeChanged) {
+            window.onThemeChanged(\(isDarkMode));
+        }
+        """
+        webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                print("❌ [NATIVE->WEB] Failed to notify theme change: \(error)")
+            } else {
+                print("✅ [NATIVE->WEB] Theme change notification sent")
+            }
+        }
+    }
 }
 
 // MARK: - WKNavigationDelegate
@@ -623,6 +707,11 @@ extension NativeContainerViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         print("✅ [WEBVIEW] Page loaded, setting up bridge...")
         setupWebViewBridge()
+
+        // Send initial theme to web layer
+        let isDarkMode = traitCollection.userInterfaceStyle == .dark
+        print("📤 [WEBVIEW] Sending initial theme: \(isDarkMode ? "dark" : "light")")
+        notifyWebThemeChanged(isDarkMode: isDarkMode)
     }
 }
 

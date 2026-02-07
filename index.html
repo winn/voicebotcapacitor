@@ -18,17 +18,65 @@
   </head>
 
   <body>
+    <style>
+      /* Theme colors - dynamically updated */
+      :root {
+        --bg-primary: #000;
+        --bg-secondary: #1C1C1E;
+        --text-primary: #ECECF1;
+        --text-secondary: #999;
+        --text-muted: #666;
+        --bubble-user: #2F2F2F;
+        --border-color: rgba(255, 255, 255, 0.1);
+        --input-bg: #2C2C2E;
+        --input-border: #3A3A3C;
+      }
+
+      /* Detect system light mode preference */
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg-primary: #fff;
+          --bg-secondary: #f7f7f8;
+          --text-primary: #000;
+          --text-secondary: #666;
+          --text-muted: #999;
+          --bubble-user: #E8E8E8;
+          --border-color: rgba(0, 0, 0, 0.1);
+          --input-bg: #fff;
+          --input-border: #D1D1D6;
+        }
+      }
+
+      /* Override with explicit light-mode class from native */
+      body.light-mode {
+        --bg-primary: #fff;
+        --bg-secondary: #f7f7f8;
+        --text-primary: #000;
+        --text-secondary: #666;
+        --text-muted: #999;
+        --bubble-user: #E8E8E8;
+        --border-color: rgba(0, 0, 0, 0.1);
+        --input-bg: #fff;
+        --input-border: #D1D1D6;
+      }
+
+      body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+    </style>
     <!-- API Key Setup Screen -->
-    <div id="api-key-setup" style="display: none; padding: 60px 20px 20px 20px; background: #000; min-height: 100vh;">
-      <div style="max-width: 400px; margin: 0 auto; background: #1C1C1E; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-        <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600; color: #fff;">OpenAI API Key Required</h2>
-        <p style="color: #999; font-size: 14px; margin: 0 0 20px 0;">Enter your OpenAI API key to use the voice assistant</p>
+    <div id="api-key-setup" style="display: none; padding: 60px 20px 20px 20px; background: var(--bg-primary); min-height: 100vh;">
+      <div style="max-width: 400px; margin: 0 auto; background: var(--bg-secondary); border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+        <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600; color: var(--text-primary);">OpenAI API Key Required</h2>
+        <p style="color: var(--text-secondary); font-size: 14px; margin: 0 0 20px 0;">Enter your OpenAI API key to use the voice assistant</p>
 
         <input
           type="text"
           id="api-key-input"
           placeholder="sk-..."
-          style="width: 100%; padding: 12px; border: 1px solid #3A3A3C; background: #2C2C2E; color: #fff; border-radius: 8px; font-size: 15px; margin-bottom: 12px; box-sizing: border-box;"
+          style="width: 100%; padding: 12px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-primary); border-radius: 8px; font-size: 15px; margin-bottom: 12px; box-sizing: border-box;"
         />
 
         <button
@@ -45,8 +93,8 @@
     </div>
 
     <!-- Messages Container -->
-    <div id="messages-container" style="padding-top: 0; padding-bottom: 100px; padding-left: 0; padding-right: 0; min-height: 100vh; background: #000;">
-      <div style="text-align: center; color: #666; padding: 100px 20px;">
+    <div id="messages-container" style="padding-top: 0; padding-bottom: 100px; padding-left: 0; padding-right: 0; min-height: 100vh; background: var(--bg-primary);">
+      <div style="text-align: center; color: var(--text-muted); padding: 100px 20px;">
         Type a message to start chatting
       </div>
     </div>
@@ -94,7 +142,7 @@
           dot.style.cssText = `
             width: 8px;
             height: 8px;
-            background: #666;
+            background: var(--text-muted);
             border-radius: 50%;
             animation: bounce 1.4s infinite ease-in-out;
             animation-delay: ${i * 0.16}s;
@@ -173,13 +221,13 @@
             max-width: 70%;
             padding: 12px 16px;
             border-radius: 20px;
-            background: #2F2F2F;
-            color: #fff;
+            background: var(--bubble-user);
+            color: var(--text-primary);
             font-size: 16px;
             line-height: 1.5;
             word-wrap: break-word;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-            border: 1px dashed #666;
+            border: 1px dashed var(--text-muted);
           `;
 
           partialTranscriptElement.appendChild(bubble);
@@ -402,14 +450,14 @@
         `;
 
         if (isUser) {
-          // User message: Dark gray bubble on right (like ChatGPT)
+          // User message: Gray bubble on right (like ChatGPT)
           const bubble = document.createElement('div');
           bubble.style.cssText = `
             max-width: 70%;
             padding: 12px 16px;
             border-radius: 20px;
-            background: #2F2F2F;
-            color: #fff;
+            background: var(--bubble-user);
+            color: var(--text-primary);
             font-size: 16px;
             line-height: 1.5;
             word-wrap: break-word;
@@ -484,7 +532,7 @@
           const textContent = document.createElement('div');
           textContent.style.cssText = `
             flex: 1;
-            color: #ECECF1;
+            color: var(--text-primary);
             font-size: 16px;
             line-height: 1.6;
             word-wrap: break-word;
@@ -501,7 +549,7 @@
             speakerIcon.setAttribute('height', '16');
             speakerIcon.setAttribute('viewBox', '0 0 24 24');
             speakerIcon.setAttribute('fill', 'none');
-            speakerIcon.setAttribute('stroke', '#999');
+            speakerIcon.setAttribute('stroke', 'var(--text-secondary)');
             speakerIcon.setAttribute('stroke-width', '2');
             speakerIcon.setAttribute('stroke-linecap', 'round');
             speakerIcon.setAttribute('stroke-linejoin', 'round');
@@ -520,7 +568,7 @@
             const hint = document.createElement('div');
             hint.style.cssText = `
               font-size: 11px;
-              color: #666;
+              color: var(--text-muted);
               margin-top: 4px;
             `;
             hint.textContent = '• Tap to replay';
@@ -654,7 +702,18 @@
         // TODO: Update UI to remove playing indicator
       };
 
+      // Theme change handler
+      window.onThemeChanged = function(isDarkMode) {
+        console.log('🎨 [NATIVE->WEB] Theme changed:', isDarkMode ? 'dark' : 'light');
+        if (isDarkMode) {
+          document.body.classList.remove('light-mode');
+        } else {
+          document.body.classList.add('light-mode');
+        }
+      };
+
       console.log('✅ [IMMEDIATE] Registered audio playback state listeners');
+      console.log('✅ [IMMEDIATE] Registered theme change listener');
       console.log('🎉 [IMMEDIATE] Handlers ready with OpenAI, bridge flag =', window.nativeBridgeReady);
 
       // Load conversation history when page loads
